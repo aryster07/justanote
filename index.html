@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <meta name="theme-color" content="#C5A059" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Just A Note - Royal Gold</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&amp;family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "royal-gold": "#C5A059",
+              "royal-gold-dark": "#997B36",
+              "royal-gold-light": "#EAD6A3",
+              "primary": "#D4AF37",
+              "primary-dark": "#B59020",
+              "surface-light": "#FAFAFA",
+              "surface-dark": "#121212",
+            },
+            fontFamily: {
+              "sans": ["Plus Jakarta Sans", "sans-serif"],
+              "serif": ["Playfair Display", "serif"],
+            },
+            boxShadow: {
+                'gold-soft': '0 10px 40px -10px rgba(197, 160, 89, 0.3)',
+                'gold-glow': '0 0 20px rgba(197, 160, 89, 0.4)',
+            },
+            backgroundImage: {
+                'gold-gradient': 'linear-gradient(135deg, #D4AF37 0%, #C5A059 50%, #B69121 100%)',
+            },
+            animation: {
+                'float-slow': 'floatUp 18s linear infinite',
+                'float-medium': 'floatUp 12s linear infinite',
+                'float-fast': 'floatUp 9s linear infinite',
+                'pulse-heart': 'pulseHeart 3s ease-in-out infinite',
+                'spin-slow': 'spin 8s linear infinite',
+            },
+            keyframes: {
+                floatUp: {
+                    '0%': { transform: 'translateY(100vh) scale(0.5)', opacity: '0' },
+                    '20%': { opacity: '0.4' },
+                    '80%': { opacity: '0.4' },
+                    '100%': { transform: 'translateY(-20vh) scale(1.2)', opacity: '0' },
+                },
+                pulseHeart: {
+                    '0%, 100%': { transform: 'scale(1)' },
+                    '50%': { transform: 'scale(1.05)' },
+                }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      
+      body {
+        background-color: #f8fafc;
+        margin: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        touch-action: manipulation;
+      }
+      
+      input, textarea, button {
+        font-size: 16px; /* Prevents zoom on iOS */
+      }
+      
+      @media (max-width: 640px) {
+        input, textarea {
+          font-size: 16px !important; /* Ensures no zoom on mobile */
+        }
+      }
+      
+      .gold-text-gradient {
+        background: linear-gradient(135deg, #D4AF37 0%, #AA8518 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      
+      /* Improved touch targets */
+      .touch-manipulation {
+        touch-action: manipulation;
+      }
+      
+      /* Smooth scrolling */
+      html {
+        scroll-behavior: smooth;
+      }
+      
+      /* Better text rendering on mobile */
+      @media (max-width: 768px) {
+        body {
+          text-rendering: optimizeLegibility;
+          -webkit-text-size-adjust: 100%;
+        }
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
+    "firebase/": "https://esm.sh/firebase@^12.8.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

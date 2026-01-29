@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Notes collection - allow read/write for now (add auth later)
+    match /notes/{noteId} {
+      // Anyone can read notes (to view them)
+      allow read: if true;
+
+      // Anyone can create notes
+      allow create: if true;
+
+      // Allow updates (for view counts, status changes)
+      allow update: if true;
+
+      // Don't allow deletes for now
+      allow delete: if false;
+    }
+
+    // Legacy collection name support
+    match /dedications/{dedicationId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if false;
+    }
+  }
+}
