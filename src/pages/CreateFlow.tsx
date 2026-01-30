@@ -644,15 +644,17 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
 
   // Self delivery UI
   return (
-    <div className="flex flex-col h-screen bg-slate-50 items-center justify-center px-6">
+    <div className="flex flex-col h-screen bg-white items-center justify-center px-6">
       <div className="text-center max-w-md">
-        <div className="text-6xl mb-6">🎉</div>
+        <div className="w-20 h-20 bg-gold-gradient rounded-full flex items-center justify-center mx-auto mb-6 shadow-gold-glow">
+          <span className="text-4xl">🎉</span>
+        </div>
         <h1 className="text-3xl font-bold text-slate-900 mb-4">Your Note is Ready!</h1>
         <p className="text-slate-600 mb-8">
           Share the link below with your recipient
         </p>
 
-        <div className="bg-white rounded-xl p-4 border border-slate-200 mb-6">
+        <div className="bg-white rounded-xl p-4 border border-royal-gold/30 mb-6 shadow-gold-soft">
           <div className="flex gap-2">
             <input
               readOnly
@@ -661,16 +663,16 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
             />
             <button
               onClick={copyLink}
-              className="px-4 py-2 bg-royal-gold text-white font-bold rounded-lg"
+              className="px-4 py-2 bg-gold-gradient text-white font-bold rounded-lg shadow-gold-glow"
             >
-              {copied ? '✓' : 'Copy'}
+              {copied ? '✓ Copied' : 'Copy'}
             </button>
           </div>
         </div>
 
         <button
           onClick={() => navigate('/')}
-          className="px-8 py-3 bg-slate-900 text-white font-bold rounded-lg"
+          className="px-8 py-3 bg-gold-gradient text-white font-bold rounded-full shadow-gold-glow hover:scale-105 transition-transform"
         >
           Create Another Note
         </button>
