@@ -64,13 +64,17 @@ export default function Admin() {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log('Auth state changed:', currentUser?.email);
       setUser(currentUser);
       if (currentUser && ALLOWED_ADMINS.includes(currentUser.email || '')) {
         setIsAuthorized(true);
-      } else {
+        setAuthLoading(false);
+      } else if (currentUser) {
+        // User is signed in but not authorized
         setIsAuthorized(false);
+        setAuthLoading(false);
       }
-      setAuthLoading(false);
+      // Don't set authLoading false here if no user - wait for redirect result
     });
 
     return () => unsubscribe();
@@ -80,15 +84,26 @@ export default function Admin() {
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
+        console.log('Checking redirect result...');
         const result = await getRedirectResult(auth);
+        console.log('Redirect result:', result?.user?.email);
+        
         if (result && result.user) {
           if (!ALLOWED_ADMINS.includes(result.user.email || '')) {
             await signOut(auth);
             setError('Access denied. This email is not authorized.');
+            setAuthLoading(false);
+          }
+          // If authorized, onAuthStateChanged will handle setting the state
+        } else {
+          // No redirect result, check if there's already a user
+          if (!auth.currentUser) {
+            setAuthLoading(false);
           }
         }
       } catch (err: any) {
         console.error('Redirect sign in error:', err);
+        setAuthLoading(false);
         // More specific error messages for mobile
         if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
           // User cancelled, don't show error
