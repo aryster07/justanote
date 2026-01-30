@@ -257,7 +257,45 @@ const ViewNote: React.FC = () => {
       ctx.fillText(note.recipientName, canvas.width / 2, yPos);
       yPos += 80;
       
-      // Photo if exists
+      // Song section - Song bar (now above photo)
+      if (note.song) {
+        const barWidth = 700;
+        const barHeight = 90;
+        const barX = (canvas.width - barWidth) / 2;
+        const barY = yPos;
+        
+        // Bar background
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barWidth, barHeight, 16);
+        ctx.fillStyle = 'rgba(190, 24, 93, 0.08)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(190, 24, 93, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Music note icon
+        ctx.font = '36px Arial';
+        ctx.fillStyle = '#be185d';
+        ctx.textAlign = 'left';
+        ctx.fillText('🎵', barX + 25, barY + 55);
+        
+        // Song title
+        ctx.font = 'bold 30px Arial';
+        ctx.fillStyle = '#1f2937';
+        const titleText = note.song.title.length > 28 ? note.song.title.substring(0, 28) + '...' : note.song.title;
+        ctx.fillText(titleText, barX + 80, barY + 40);
+        
+        // Artist name
+        ctx.font = '24px Arial';
+        ctx.fillStyle = '#6b7280';
+        const artistText = note.song.artist.length > 35 ? note.song.artist.substring(0, 35) + '...' : note.song.artist;
+        ctx.fillText(artistText, barX + 80, barY + 70);
+        
+        ctx.textAlign = 'center';
+        yPos = barY + barHeight + 40;
+      }
+      
+      // Photo if exists (now below song)
       if (note.photoUrl) {
         try {
           const img = new Image();
@@ -268,7 +306,7 @@ const ViewNote: React.FC = () => {
             img.src = note.photoUrl!;
           });
           
-          const imgSize = 350;
+          const imgSize = 400;
           const imgX = (canvas.width - imgSize) / 2;
           
           // Draw rounded rectangle clip
@@ -286,96 +324,10 @@ const ViewNote: React.FC = () => {
           ctx.roundRect(imgX, yPos, imgSize, imgSize, 20);
           ctx.stroke();
           
-          yPos += imgSize + 50;
+          yPos += imgSize + 40;
         } catch (e) {
           console.log('Could not load photo for share');
         }
-      }
-      
-      // Song section - Vinyl disk design
-      if (note.song) {
-        const diskCenterX = canvas.width / 2;
-        const diskY = yPos + 100;
-        const outerRadius = 120;
-        const innerRadius = 40;
-        
-        // Outer vinyl disk (dark)
-        ctx.beginPath();
-        ctx.arc(diskCenterX, diskY, outerRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#1f1f1f';
-        ctx.fill();
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Vinyl grooves
-        for (let r = innerRadius + 10; r < outerRadius - 10; r += 8) {
-          ctx.beginPath();
-          ctx.arc(diskCenterX, diskY, r, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(50, 50, 50, 0.8)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-        
-        // Center label (gold)
-        ctx.beginPath();
-        ctx.arc(diskCenterX, diskY, innerRadius, 0, Math.PI * 2);
-        const labelGradient = ctx.createRadialGradient(diskCenterX, diskY, 0, diskCenterX, diskY, innerRadius);
-        labelGradient.addColorStop(0, '#fda4af');
-        labelGradient.addColorStop(1, '#be185d');
-        ctx.fillStyle = labelGradient;
-        ctx.fill();
-        
-        // Center hole
-        ctx.beginPath();
-        ctx.arc(diskCenterX, diskY, 8, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        
-        // Shine effect on vinyl
-        ctx.beginPath();
-        ctx.arc(diskCenterX - 30, diskY - 30, outerRadius, 0, Math.PI * 0.5);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 20;
-        ctx.stroke();
-        
-        // Song info bar below disk
-        const barWidth = 600;
-        const barHeight = 80;
-        const barX = (canvas.width - barWidth) / 2;
-        const barY = diskY + outerRadius + 30;
-        
-        // Bar background
-        ctx.beginPath();
-        ctx.roundRect(barX, barY, barWidth, barHeight, 16);
-        ctx.fillStyle = 'rgba(190, 24, 93, 0.08)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(190, 24, 93, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Music note icon
-        ctx.font = '32px Arial';
-        ctx.fillStyle = '#be185d';
-        ctx.textAlign = 'left';
-        ctx.fillText('🎵', barX + 20, barY + 50);
-        
-        // Song title
-        ctx.font = 'bold 28px Arial';
-        ctx.fillStyle = '#1f2937';
-        const titleText = note.song.title.length > 25 ? note.song.title.substring(0, 25) + '...' : note.song.title;
-        ctx.fillText(titleText, barX + 70, barY + 35);
-        
-        // Artist name
-        ctx.font = '22px Arial';
-        ctx.fillStyle = '#6b7280';
-        const artistText = note.song.artist.length > 30 ? note.song.artist.substring(0, 30) + '...' : note.song.artist;
-        ctx.fillText(artistText, barX + 70, barY + 62);
-        
-        ctx.textAlign = 'center';
-        yPos = barY + barHeight + 50;
-      } else {
-        yPos += 30;
       }
       
       // Message (truncated)
@@ -446,7 +398,7 @@ const ViewNote: React.FC = () => {
       
       ctx.font = '22px Arial';
       ctx.fillStyle = '#9ca3af';
-      ctx.fillText('justanote-245f2.web.app', canvas.width / 2, canvas.height - 70);
+      ctx.fillText('justanote.me', canvas.width / 2, canvas.height - 70);
       
       // Convert to blob and download/share
       canvas.toBlob(async (blob) => {
