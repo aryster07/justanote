@@ -22,33 +22,65 @@ const cleanData = (obj: any): any => {
   return obj;
 };
 
-// Compress image to base64
+// Compress image to base64 with proper error handling
 export const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Invalid file type. Please upload an image.'));
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      reject(new Error('Image too large. Maximum size is 10MB.'));
+      return;
+    }
+
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      reject(new Error('Could not create canvas context'));
+      return;
+    }
+
     const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
     
     img.onload = () => {
-      let { width, height } = img;
-      const maxDim = 400;
-      
-      if (width > height && width > maxDim) {
-        height = (height * maxDim) / width;
-        width = maxDim;
-      } else if (height > maxDim) {
-        width = (width * maxDim) / height;
-        height = maxDim;
+      try {
+        let { width, height } = img;
+        const maxDim = 400;
+        
+        if (width > height && width > maxDim) {
+          height = (height * maxDim) / width;
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = (width * maxDim) / height;
+          height = maxDim;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.2);
+        URL.revokeObjectURL(objectUrl);
+        resolve(dataUrl);
+      } catch (error) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Failed to compress image'));
       }
-      
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.2));
     };
     
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image'));
+    };
+    
+    img.src = objectUrl;
   });
 };
 
@@ -59,7 +91,12 @@ export const saveNote = async (data: NoteData): Promise<string> => {
 
   let photoUrl = null;
   if (data.photo) {
-    photoUrl = await compressImage(data.photo);
+    try {
+      photoUrl = await compressImage(data.photo);
+    } catch (error) {
+      console.error('Image compression failed:', error);
+      // Continue without photo if compression fails
+    }
   }
 
   const docData = cleanData({

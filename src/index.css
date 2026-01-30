@@ -62,3 +62,11 @@ button:focus {
 .safe-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 1.5rem);
 }
+
+/* Line clamp utility */
+.line-clamp-\[12\] {
+  display: -webkit-box;
+  -webkit-line-clamp: 12;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

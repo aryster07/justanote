@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Search, Edit2, Check, Play, Image as ImageIcon, Loader2, X } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Search, Edit2, Check, Play, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { NoteData, VIBES, Song, SongData } from '../types';
-import { PrimaryButton, StepIndicator, SongPlayer, ImagePreview } from '../components/UI';
+import { PrimaryButton, StepIndicator, SongPlayer, ImagePreview, BackButton } from '../components/UI';
 import { saveNote } from '../services/noteService';
 import { getPopularSongs, searchSongs, processMusicLink } from '../services/songService';
 
@@ -19,7 +19,12 @@ export const RecipientStep: React.FC<StepProps> = ({ data, updateData }) => {
   return (
     <div className="flex flex-col h-screen relative">
       <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pt-4 md:pt-8 pb-2">
-        <StepIndicator step={1} total={4} label="Recipient" />
+        <div className="flex items-center gap-4 mb-4">
+          <BackButton onClick={() => navigate('/')} />
+          <div className="flex-1">
+            <StepIndicator step={1} total={4} label="Recipient" />
+          </div>
+        </div>
       </div>
 
       <main className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pb-32">
@@ -127,7 +132,6 @@ export const SongStep: React.FC<StepProps> = ({ data, updateData }) => {
 
   const selectSong = (song: Song) => {
     audioRef.current?.pause();
-    setPlaying(null);
     const songData: SongData = {
       type: 'itunes',
       title: song.title,
@@ -138,6 +142,14 @@ export const SongStep: React.FC<StepProps> = ({ data, updateData }) => {
       endTime: 30,
     };
     updateData({ song, songData });
+    
+    // Auto-play the selected song
+    if (song.preview) {
+      audioRef.current = new Audio(song.preview);
+      audioRef.current.play().catch(console.error);
+      audioRef.current.onended = () => setPlaying(null);
+      setPlaying(String(song.id));
+    }
   };
 
   const handleLinkSubmit = async () => {
@@ -166,7 +178,12 @@ export const SongStep: React.FC<StepProps> = ({ data, updateData }) => {
   return (
     <div className="flex flex-col h-screen bg-slate-50 relative">
       <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pt-4 md:pt-8 pb-2">
-        <StepIndicator step={2} total={4} label="Song" />
+        <div className="flex items-center gap-4 mb-4">
+          <BackButton onClick={() => navigate('/create/recipient')} />
+          <div className="flex-1">
+            <StepIndicator step={2} total={4} label="Song" />
+          </div>
+        </div>
       </div>
 
       {/* Tab switcher */}
@@ -284,11 +301,30 @@ export const SongStep: React.FC<StepProps> = ({ data, updateData }) => {
             <SongPlayer
               song={data.song}
               isPlaying={playing === String(data.song.id)}
-              onToggle={() => data.song && data.songData?.preview && togglePlay(String(data.song.id), data.songData.preview)}
+              onToggle={() => {
+                const previewUrl = data.songData?.preview || data.song?.preview;
+                if (data.song && previewUrl) {
+                  togglePlay(String(data.song.id), previewUrl);
+                }
+              }}
             />
             <PrimaryButton onClick={() => navigate('/create/message')} icon={ArrowRight}>
               Next Step
             </PrimaryButton>
+          </div>
+        </div>
+      )}
+
+      {/* Skip button when no song selected */}
+      {!data.song && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 p-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-12">
+          <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16">
+            <button
+              onClick={() => navigate('/create/message')}
+              className="w-full h-12 text-slate-500 font-medium hover:text-slate-700 transition-colors"
+            >
+              Skip for now
+            </button>
           </div>
         </div>
       )}
@@ -319,7 +355,12 @@ export const MessageStep: React.FC<StepProps> = ({ data, updateData }) => {
   return (
     <div className="flex flex-col h-screen bg-slate-50 relative">
       <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pt-4 md:pt-8 pb-2">
-        <StepIndicator step={3} total={4} label="Message" />
+        <div className="flex items-center gap-4 mb-4">
+          <BackButton onClick={() => navigate('/create/song')} />
+          <div className="flex-1">
+            <StepIndicator step={3} total={4} label="Message" />
+          </div>
+        </div>
       </div>
 
       <main className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pb-32">
@@ -335,11 +376,18 @@ export const MessageStep: React.FC<StepProps> = ({ data, updateData }) => {
             <textarea
               placeholder={`Dear ${data.recipientName || 'Name'},\nI just wanted to say...`}
               value={data.message}
-              onChange={(e) => updateData({ message: e.target.value })}
+              onChange={(e) => {
+                if (e.target.value.length <= 500) {
+                  updateData({ message: e.target.value });
+                }
+              }}
+              maxLength={500}
               className="w-full min-h-[160px] p-4 border border-royal-gold/40 rounded-xl bg-white 
                 focus:border-royal-gold focus:ring-1 focus:ring-royal-gold outline-none resize-none"
             />
-            <p className="text-right text-xs text-slate-400 mt-1">{data.message.length} / 500</p>
+            <p className={`text-right text-xs mt-1 ${data.message.length >= 450 ? 'text-amber-500' : 'text-slate-400'}`}>
+              {data.message.length} / 500
+            </p>
           </div>
 
           {/* Photo upload */}
@@ -394,7 +442,31 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
+  // Email validation
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  // Instagram handle validation (remove @ if present)
+  const handleInstagramChange = (value: string) => {
+    // Remove @ if user types it, we'll add it in display
+    const cleaned = value.replace(/^@/, '').trim();
+    updateData({ recipientInstagram: cleaned });
+  };
+
   const handleSave = async () => {
+    // Validate before saving
+    if (data.deliveryMethod === 'admin') {
+      if (!data.recipientInstagram.trim()) {
+        alert('Please enter recipient\'s Instagram handle');
+        return;
+      }
+      if (!isValidEmail(data.senderEmail)) {
+        alert('Please enter a valid email address');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const noteId = await saveNote(data);
@@ -408,12 +480,17 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
   };
 
   const canSave = data.deliveryMethod === 'self' || 
-    (data.recipientInstagram && data.senderEmail);
+    (data.recipientInstagram.trim() && isValidEmail(data.senderEmail));
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 relative">
       <div className="w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pt-4 md:pt-8 pb-2">
-        <StepIndicator step={4} total={4} label="Delivery" />
+        <div className="flex items-center gap-4 mb-4">
+          <BackButton onClick={() => navigate('/create/message')} />
+          <div className="flex-1">
+            <StepIndicator step={4} total={4} label="Delivery" />
+          </div>
+        </div>
       </div>
 
       <main className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto px-5 sm:px-8 lg:px-16 pb-32">
@@ -451,12 +528,15 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
                 <label className="block text-sm font-bold text-slate-800 mb-2">
                   Recipient's Instagram
                 </label>
-                <input
-                  placeholder="@username"
-                  value={data.recipientInstagram}
-                  onChange={(e) => updateData({ recipientInstagram: e.target.value })}
-                  className="w-full h-12 px-4 border border-slate-300 rounded-lg focus:border-royal-gold outline-none"
-                />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">@</span>
+                  <input
+                    placeholder="username"
+                    value={data.recipientInstagram}
+                    onChange={(e) => handleInstagramChange(e.target.value)}
+                    className="w-full h-12 pl-8 pr-4 border border-slate-300 rounded-lg focus:border-royal-gold outline-none"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-800 mb-2">
@@ -467,8 +547,13 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
                   placeholder="you@example.com"
                   value={data.senderEmail}
                   onChange={(e) => updateData({ senderEmail: e.target.value })}
-                  className="w-full h-12 px-4 border border-slate-300 rounded-lg focus:border-royal-gold outline-none"
+                  className={`w-full h-12 px-4 border rounded-lg focus:border-royal-gold outline-none ${
+                    data.senderEmail && !isValidEmail(data.senderEmail) ? 'border-red-300' : 'border-slate-300'
+                  }`}
                 />
+                {data.senderEmail && !isValidEmail(data.senderEmail) && (
+                  <p className="text-red-500 text-xs mt-1">Please enter a valid email</p>
+                )}
               </div>
             </div>
           )}
