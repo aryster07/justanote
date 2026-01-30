@@ -96,7 +96,7 @@ export default function Admin() {
         } else if (err.code === 'auth/network-request-failed') {
           setError('Network error. Please check your internet connection.');
         } else if (err.code === 'auth/unauthorized-domain') {
-          setError('This domain is not authorized. Please contact admin.');
+          setError(`Domain "${window.location.hostname}" is not authorized. Please add it to Firebase Console > Authentication > Settings > Authorized domains.`);
         } else if (err.code === 'auth/operation-not-allowed') {
           setError('Google sign-in is not enabled. Please contact admin.');
         } else {
@@ -112,6 +112,14 @@ export default function Admin() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   };
 
+  // Check if current domain needs to use redirect
+  const isCustomDomain = () => {
+    const hostname = window.location.hostname;
+    return hostname.includes('justanote.me') || 
+           hostname === 'www.justanote.me' || 
+           hostname === 'justanote.me';
+  };
+
   // Handle Google Sign In
   const handleGoogleSignIn = async () => {
     setError('');
@@ -123,8 +131,8 @@ export default function Admin() {
         prompt: 'select_account'
       });
       
-      // Use redirect on mobile devices (popup often fails on mobile browsers)
-      if (isMobile()) {
+      // Use redirect on mobile devices or custom domains (popup often fails)
+      if (isMobile() || isCustomDomain()) {
         await signInWithRedirect(auth, provider);
         return;
       }
@@ -153,7 +161,7 @@ export default function Admin() {
       } else if (err.code === 'auth/network-request-failed') {
         setError('Network error. Please check your internet connection.');
       } else if (err.code === 'auth/unauthorized-domain') {
-        setError('This domain is not authorized for sign-in.');
+        setError(`Domain not authorized. Please add "${window.location.hostname}" to Firebase Console > Authentication > Settings > Authorized domains.`);
       } else if (err.code !== 'auth/popup-closed-by-user') {
         setError(`Sign in failed: ${err.message || 'Unknown error'}`);
       }

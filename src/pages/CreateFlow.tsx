@@ -602,6 +602,11 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
   const [copied, setCopied] = useState(false);
   const shareUrl = `${window.location.origin}/view/${data.id}`;
 
+  const previewNote = () => {
+    // Open the note in a new tab so creator can preview it
+    window.open(`/view/${data.id}`, '_blank');
+  };
+
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
@@ -669,6 +674,14 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
             </button>
           </div>
         </div>
+
+        {/* Preview button */}
+        <button
+          onClick={previewNote}
+          className="w-full mb-4 px-8 py-3 bg-white border-2 border-royal-gold text-royal-gold font-bold rounded-full hover:bg-royal-gold/5 transition-colors flex items-center justify-center gap-2"
+        >
+          <span>👁️</span> Preview Your Note
+        </button>
 
         <button
           onClick={() => navigate('/')}

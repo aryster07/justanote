@@ -56,8 +56,8 @@ const ViewNote: React.FC = () => {
       audioRef.current = null;
     }
     
-    // Small delay to let the page render first
-    const timer = setTimeout(() => {
+    // Auto-play function that handles user interaction requirement
+    const attemptAutoPlay = () => {
       const audio = new Audio(previewUrl);
       audioRef.current = audio;
       
@@ -70,19 +70,45 @@ const ViewNote: React.FC = () => {
       
       audio.play().then(() => {
         setIsPlaying(true);
+        // Remove event listeners once autoplay succeeds
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('touchstart', handleUserInteraction);
       }).catch((err) => {
-        // Autoplay might be blocked by browser, that's okay
-        console.log('Autoplay blocked:', err.message);
+        // Autoplay was blocked - wait for user interaction
+        console.log('Autoplay blocked, waiting for user interaction:', err.message);
       });
-    }, 500);
+    };
+    
+    // Handler for user interaction to enable audio
+    const handleUserInteraction = () => {
+      if (!isPlaying && audioRef.current) {
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch(console.error);
+      } else if (!audioRef.current) {
+        attemptAutoPlay();
+      }
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+    
+    // Small delay to let the page render first
+    const timer = setTimeout(() => {
+      attemptAutoPlay();
+      // Add listeners for user interaction as fallback
+      document.addEventListener('click', handleUserInteraction, { once: true });
+      document.addEventListener('touchstart', handleUserInteraction, { once: true });
+    }, 300);
     
     return () => {
       clearTimeout(timer);
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
       if (audioRef.current) {
         audioRef.current.pause();
       }
     };
-  }, [note?.id]);
+  }, [note, loading]);
 
   // Check if audio playback is available (iTunes songs have preview)
   const hasAudioPreview = note?.songData?.preview || note?.song?.preview;
