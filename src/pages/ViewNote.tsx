@@ -521,20 +521,9 @@ const ViewNote: React.FC = () => {
             </h1>
           </div>
 
-          {/* Photo */}
-          {note.photoUrl && (
-            <div className="relative mb-8 rounded-2xl overflow-hidden shadow-lg">
-              <img
-                src={note.photoUrl}
-                alt="Memory"
-                className="w-full aspect-square object-cover"
-              />
-            </div>
-          )}
-
-          {/* Song player */}
+          {/* Song player - Now above photo */}
           {note.song && (
-            <div className="mb-8 bg-white rounded-2xl p-4 shadow-md border border-slate-100">
+            <div className="mb-6 bg-white rounded-2xl p-4 shadow-md border border-slate-100">
               <div className="flex items-center gap-4">
                 <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
                   <img
@@ -584,15 +573,29 @@ const ViewNote: React.FC = () => {
             </div>
           )}
 
-          {/* Message */}
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-slate-100 mb-8">
-            <MessageCircle size={24} className="text-royal-gold mb-4" />
-            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-[12]">
-              {note.message}
-            </p>
-            {note.message.length > 400 && (
-              <p className="text-royal-gold text-sm mt-2 font-medium">...</p>
+          {/* Photo and Message together */}
+          <div className="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden mb-8">
+            {/* Photo */}
+            {note.photoUrl && (
+              <div className="relative">
+                <img
+                  src={note.photoUrl}
+                  alt="Memory"
+                  className="w-full aspect-square object-cover"
+                />
+              </div>
             )}
+
+            {/* Message */}
+            <div className="p-6">
+              <MessageCircle size={24} className="text-royal-gold mb-4" />
+              <p className="text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-[12]">
+                {note.message}
+              </p>
+              {note.message.length > 400 && (
+                <p className="text-royal-gold text-sm mt-2 font-medium">...</p>
+              )}
+            </div>
           </div>
 
           {/* Sender */}
