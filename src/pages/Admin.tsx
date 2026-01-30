@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, doc, updateDoc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, updateDoc, deleteDoc, serverTimestamp, where } from 'firebase/firestore';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import emailjs from '@emailjs/browser';
 import { db, auth } from '../config/firebase';
@@ -8,6 +8,7 @@ import {
   Lock, 
   Eye, 
   Instagram, 
+  Trash2, 
   Mail, 
   CheckCircle, 
   Clock, 
@@ -197,8 +198,10 @@ export default function Admin() {
   const fetchNotes = async () => {
     setLoading(true);
     try {
+      // Only fetch notes where deliveryMethod is 'admin' (user selected "let us send it")
       const q = query(
         collection(db, 'notes'),
+        where('deliveryMethod', '==', 'admin'),
         orderBy('createdAt', 'desc')
       );
       
@@ -208,7 +211,7 @@ export default function Admin() {
         id: doc.id,
       })) as Note[];
 
-      // Calculate stats
+      // Calculate stats (only for admin delivery notes)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -286,6 +289,51 @@ export default function Admin() {
     } catch (err) {
       console.error('Error updating note:', err);
       alert('Failed to update note status');
+    }
+  };
+
+  // Delete a single note
+  const deleteNote = async (noteId: string) => {
+    if (!confirm('Are you sure you want to delete this note?')) return;
+    
+    try {
+      const note = notes.find(n => n.id === noteId);
+      await deleteDoc(doc(db, 'notes', noteId));
+      
+      // Update local state
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+      
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        total: prev.total - 1,
+        pending: note?.status === 'pending' ? prev.pending - 1 : prev.pending,
+        delivered: note?.status === 'delivered' ? prev.delivered - 1 : prev.delivered,
+      }));
+    } catch (err) {
+      console.error('Error deleting note:', err);
+      alert('Failed to delete note');
+    }
+  };
+
+  // Delete all notes (admin only)
+  const deleteAllNotes = async () => {
+    if (!confirm('Are you sure you want to delete ALL notes? This cannot be undone!')) return;
+    if (!confirm('This will permanently delete all notes. Type "DELETE" to confirm.')) return;
+    
+    try {
+      setLoading(true);
+      for (const note of notes) {
+        await deleteDoc(doc(db, 'notes', note.id));
+      }
+      setNotes([]);
+      setStats({ total: 0, pending: 0, delivered: 0, todayCreated: 0 });
+      alert('All notes deleted successfully');
+    } catch (err) {
+      console.error('Error deleting all notes:', err);
+      alert('Failed to delete all notes');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -407,6 +455,16 @@ export default function Admin() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
+            {notes.length > 0 && (
+              <button
+                onClick={deleteAllNotes}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All
+              </button>
+            )}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
@@ -638,6 +696,14 @@ export default function Admin() {
                           Send via DM
                         </a>
                       )}
+
+                      <button
+                        onClick={() => deleteNote(note.id)}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </button>
 
                       {note.status === 'pending' && (
                         <button
