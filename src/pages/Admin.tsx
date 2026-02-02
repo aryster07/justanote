@@ -22,7 +22,10 @@ import {
   TrendingUp,
   Send,
   Calendar,
-  LogOut
+  LogOut,
+  Filter,
+  BarChart3,
+  FileText
 } from 'lucide-react';
 
 interface Note extends NoteData {
@@ -38,6 +41,19 @@ interface Stats {
   todayCreated: number;
 }
 
+interface AllNotesStats {
+  total: number;
+  self: number;
+  admin: number;
+  delivered: number;
+  pending: number;
+}
+
+interface DateFilter {
+  startDate: string;
+  endDate: string;
+}
+
 // Allowed admin emails
 const ALLOWED_ADMINS = [
   'aryanrana762@gmail.com',
@@ -49,17 +65,27 @@ export default function Admin() {
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [signingIn, setSigningIn] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'delivered'>('pending');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, delivered: 0, todayCreated: 0 });
+  const [allNotesStats, setAllNotesStats] = useState<AllNotesStats>({ total: 0, self: 0, admin: 0, delivered: 0, pending: 0 });
+  const [currentView, setCurrentView] = useState<'delivery' | 'allNotes'>('delivery');
+  
+  // All notes filters
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ startDate: '', endDate: '' });
+  const [vibeFilter, setVibeFilter] = useState<string>('all');
+  const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'self' | 'admin'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'delivered'>('all');
 
-// EmailJS configuration
+  // EmailJS configuration
   const EMAILJS_SERVICE_ID = 'service_h5xg96d';
   const EMAILJS_TEMPLATE_ID = 'template_gkanixq';
-  const EMAILJS_PUBLIC_KEY = 'Mf3NXKBr-DJk-Yezd';
+  const EMAILJS_PUBLIC_KEY = 'D0IP-NcoiDAvCP57u';
+
 
   // Listen for auth state changes
   useEffect(() => {
@@ -241,6 +267,46 @@ export default function Admin() {
 
     // Cleanup listener on unmount
     return () => unsubscribe();
+  }, [isAuthorized]);
+
+  // Fetch ALL notes (for analytics/all notes view)
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    const fetchAllNotes = async () => {
+      try {
+        const q = query(
+          collection(db, 'notes'),
+          orderBy('createdAt', 'desc')
+        );
+        
+        const snapshot = await getDocs(q);
+        const fetchedNotes: Note[] = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id,
+        })) as Note[];
+
+        setAllNotes(fetchedNotes);
+
+        // Calculate all notes stats
+        const selfDelivery = fetchedNotes.filter(n => n.deliveryMethod === 'self').length;
+        const adminDelivery = fetchedNotes.filter(n => n.deliveryMethod === 'admin').length;
+        const delivered = fetchedNotes.filter(n => n.status === 'delivered').length;
+        const pending = fetchedNotes.filter(n => n.status === 'pending').length;
+
+        setAllNotesStats({
+          total: fetchedNotes.length,
+          self: selfDelivery,
+          admin: adminDelivery,
+          delivered,
+          pending
+        });
+      } catch (err: any) {
+        console.error('Error fetching all notes:', err);
+      }
+    };
+
+    fetchAllNotes();
   }, [isAuthorized]);
 
   // Manual refresh function (forces re-fetch)
@@ -498,50 +564,81 @@ export default function Admin() {
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-pink-50">
       {/* Header */}
       <header className="bg-white border-b border-rose-100 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center">
-              <Heart className="w-5 h-5 text-white" />
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center">
+                <Heart className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Just A Note</h1>
+                <p className="text-sm text-gray-500">Welcome, {user.displayName || user.email}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Just A Note</h1>
-              <p className="text-sm text-gray-500">Welcome, {user.displayName || user.email}</p>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={refreshNotes}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+              {notes.length > 0 && currentView === 'delivery' && (
+                <button
+                  onClick={deleteAllNotes}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete All
+                </button>
+              )}
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          {/* View Switcher */}
+          <div className="flex gap-2">
             <button
-              onClick={refreshNotes}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"
+              onClick={() => setCurrentView('delivery')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                currentView === 'delivery'
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-white text-gray-600 hover:bg-rose-50 border border-rose-100'
+              }`}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              <Send className="w-4 h-4" />
+              Delivery Queue
             </button>
-            {notes.length > 0 && (
-              <button
-                onClick={deleteAllNotes}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete All
-              </button>
-            )}
             <button
-              onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+              onClick={() => setCurrentView('allNotes')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                currentView === 'allNotes'
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-white text-gray-600 hover:bg-rose-50 border border-rose-100'
+              }`}
             >
-              <LogOut className="w-4 h-4" />
-              Sign Out
+              <BarChart3 className="w-4 h-4" />
+              All Notes
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Conditional rendering based on current view */}
+        {currentView === 'delivery' ? (
+          <>
+            {/* Delivery Queue View - Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -774,6 +871,251 @@ export default function Admin() {
             })
           )}
         </div>
+          </>
+        ) : (
+          <>
+            {/* All Notes View */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <FileText className="w-6 h-6" />
+                All Notes Analytics
+              </h2>
+              
+              {/* All Notes Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <TrendingUp className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.total}</p>
+                      <p className="text-sm text-gray-500">Total</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <UserIcon className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.self}</p>
+                      <p className="text-sm text-gray-500">Self Delivered</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                      <Send className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.admin}</p>
+                      <p className="text-sm text-gray-500">Admin Queue</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.delivered}</p>
+                      <p className="text-sm text-gray-500">Delivered</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.pending}</p>
+                      <p className="text-sm text-gray-500">Pending</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Filter className="w-5 h-5 text-rose-500" />
+                  <h3 className="font-bold text-gray-900">Filters</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Date Range Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={dateFilter.startDate}
+                      onChange={(e) => setDateFilter({ ...dateFilter, startDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={dateFilter.endDate}
+                      onChange={(e) => setDateFilter({ ...dateFilter, endDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  {/* Vibe Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vibe</label>
+                    <select
+                      value={vibeFilter}
+                      onChange={(e) => setVibeFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    >
+                      <option value="all">All Vibes</option>
+                      {VIBES.map(vibe => (
+                        <option key={vibe.id} value={vibe.id}>{vibe.emoji} {vibe.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Delivery Method Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Method</label>
+                    <select
+                      value={deliveryMethodFilter}
+                      onChange={(e) => setDeliveryMethodFilter(e.target.value as 'all' | 'self' | 'admin')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                    >
+                      <option value="all">All Methods</option>
+                      <option value="self">Self Delivery</option>
+                      <option value="admin">Admin Delivery</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="mt-3 flex gap-2">
+                  {/* Status Filter */}
+                  <div className="flex gap-2">
+                    {(['all', 'pending', 'delivered'] as const).map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`px-4 py-2 rounded-lg font-medium capitalize transition-colors ${
+                          statusFilter === status
+                            ? 'bg-rose-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Clear Filters */}
+                  <button
+                    onClick={() => {
+                      setDateFilter({ startDate: '', endDate: '' });
+                      setVibeFilter('all');
+                      setDeliveryMethodFilter('all');
+                      setStatusFilter('all');
+                    }}
+                    className="ml-auto px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+
+              {/* Filtered Notes List */}
+              <div className="space-y-4">
+                {allNotes
+                  .filter(note => {
+                    // Date filter
+                    if (dateFilter.startDate || dateFilter.endDate) {
+                      if (!note.createdAt?.toDate) return false;
+                      const noteDate = note.createdAt.toDate();
+                      if (dateFilter.startDate && noteDate < new Date(dateFilter.startDate)) return false;
+                      if (dateFilter.endDate && noteDate > new Date(dateFilter.endDate + 'T23:59:59')) return false;
+                    }
+                    
+                    // Vibe filter
+                    if (vibeFilter !== 'all' && note.vibe !== vibeFilter) return false;
+                    
+                    // Delivery method filter
+                    if (deliveryMethodFilter !== 'all' && note.deliveryMethod !== deliveryMethodFilter) return false;
+                    
+                    // Status filter
+                    if (statusFilter !== 'all' && note.status !== statusFilter) return false;
+                    
+                    return true;
+                  })
+                  .map((note) => {
+                    const vibe = getVibe(note.vibe || '1');
+                    
+                    return (
+                      <div 
+                        key={note.id}
+                        className="bg-white rounded-xl border border-rose-100 shadow-sm p-4"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="text-2xl">{vibe.emoji}</div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">To: {note.recipientName}</h3>
+                              <p className="text-sm text-gray-500">
+                                {vibe.label} • {formatDate(note.createdAt)} • {note.deliveryMethod === 'admin' ? 'Admin Delivery' : 'Self Delivery'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            note.status === 'pending' 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {note.status === 'pending' ? 'Pending' : 'Delivered'}
+                          </span>
+                        </div>
+
+                        {note.message && (
+                          <p className="text-sm text-gray-600 line-clamp-2 mb-2">{note.message}</p>
+                        )}
+
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          {note.song && (
+                            <span className="flex items-center gap-1">
+                              <Music className="w-3 h-3" />
+                              {note.song.title}
+                            </span>
+                          )}
+                          {note.senderEmail && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              {note.senderEmail}
+                            </span>
+                          )}
+                          {note.viewCount !== undefined && (
+                            <span className="ml-auto">👁️ {note.viewCount} views</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

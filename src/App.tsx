@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import Landing from './pages/Landing';
 import { RecipientStep, SongStep, MessageStep, DeliveryStep, SuccessPage } from './pages/CreateFlow';
 import ViewNote from './pages/ViewNote';
+import Admin from './pages/Admin';
 import { NoteData } from './types';
 
 // Initial state for a new note
@@ -139,6 +140,7 @@ const App: React.FC = () => {
           <Route path="/create/:step" element={<CreateFlowWrapper />} />
           <Route path="/success/:id" element={<SuccessWrapper />} />
           <Route path="/view/:id" element={<ViewNote />} />
+          <Route path="/aryan" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </NoteProvider>
