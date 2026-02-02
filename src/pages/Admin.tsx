@@ -56,10 +56,10 @@ export default function Admin() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, delivered: 0, todayCreated: 0 });
 
-  // EmailJS configuration
+// EmailJS configuration
   const EMAILJS_SERVICE_ID = 'service_h5xg96d';
-  const EMAILJS_TEMPLATE_ID = 'template_bs0eycc';
-  const EMAILJS_PUBLIC_KEY = 'H-Ra201ag7dDMUXiunF2x';
+  const EMAILJS_TEMPLATE_ID = 'template_gkanixq';
+  const EMAILJS_PUBLIC_KEY = 'Mf3NXKBr-Djk-Yezd';
 
   // Listen for auth state changes
   useEffect(() => {
