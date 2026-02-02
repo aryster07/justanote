@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Instagram } from 'lucide-react';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -56,9 +56,10 @@ const Landing: React.FC = () => {
             href="https://instagram.com/justanote.me" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="text-royal-gold hover:underline font-medium"
+            className="inline-flex items-center gap-1.5 text-royal-gold hover:underline font-medium"
           >
-            📷 @justanote.me
+            <Instagram size={14} />
+            @justanote.me
           </a>
         </div>
         Made with <span className="text-royal-gold">💛</span> by{' '}
