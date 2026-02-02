@@ -528,7 +528,7 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
           {data.deliveryMethod === 'admin' && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-2">
               <p className="text-sm text-amber-800">
-                <span className="font-bold">How it works:</span> We'll send a DM from @justanote.me to the recipient's Instagram with your note link. They won't know who sent it unless you reveal your name!
+                <span className="font-bold">How it works:</span> We'll send a DM from @justanote.me to the recipient's Instagram with your note link. You can choose to stay anonymous or reveal your name below!
               </p>
             </div>
           )}
@@ -564,6 +564,30 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
                 />
                 {data.senderEmail && !isValidEmail(data.senderEmail) && (
                   <p className="text-red-500 text-xs mt-1">Please enter a valid email</p>
+                )}
+              </div>
+              
+              {/* Anonymous toggle for admin delivery */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={data.isAnonymous}
+                    onChange={(e) => updateData({ isAnonymous: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-300 text-royal-gold focus:ring-royal-gold"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-900">Send Anonymously</span>
+                    <p className="text-xs text-slate-500">Hide your name from the recipient</p>
+                  </div>
+                </label>
+                {!data.isAnonymous && (
+                  <input
+                    placeholder="Your name"
+                    value={data.senderName}
+                    onChange={(e) => updateData({ senderName: e.target.value })}
+                    className="w-full mt-3 h-12 px-4 border border-slate-300 rounded-lg focus:border-royal-gold outline-none"
+                  />
                 )}
               </div>
             </div>
