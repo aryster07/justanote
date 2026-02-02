@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Search, Edit2, Check, Play, Image as ImageIcon, Loader2, X, Mail } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Search, Edit2, Check, Play, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { NoteData, VIBES, Song, SongData } from '../types';
 import { PrimaryButton, StepIndicator, SongPlayer, ImagePreview, BackButton } from '../components/UI';
 import { saveNote } from '../services/noteService';
@@ -132,6 +132,7 @@ export const SongStep: React.FC<StepProps> = ({ data, updateData }) => {
 
   const selectSong = (song: Song) => {
     audioRef.current?.pause();
+    setPlaying(null);
     const songData: SongData = {
       type: 'itunes',
       title: song.title,
@@ -142,14 +143,6 @@ export const SongStep: React.FC<StepProps> = ({ data, updateData }) => {
       endTime: 30,
     };
     updateData({ song, songData });
-    
-    // Auto-play the selected song
-    if (song.preview) {
-      audioRef.current = new Audio(song.preview);
-      audioRef.current.play().catch(console.error);
-      audioRef.current.onended = () => setPlaying(null);
-      setPlaying(String(song.id));
-    }
   };
 
   const handleLinkSubmit = async () => {
@@ -602,96 +595,44 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
   const [copied, setCopied] = useState(false);
   const shareUrl = `${window.location.origin}/view/${data.id}`;
 
-  const previewNote = () => {
-    // Open the note in a new tab so creator can preview it
-    window.open(`/view/${data.id}`, '_blank');
-  };
-
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Different UI for admin delivery vs self delivery
-  if (data.deliveryMethod === 'admin') {
-    return (
-      <div className="flex flex-col h-screen bg-white items-center justify-center px-6">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 bg-gold-gradient rounded-full flex items-center justify-center mx-auto mb-6 shadow-gold-glow">
-            <span className="text-4xl">💌</span>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">We're on it!</h1>
-          <p className="text-slate-600 mb-4">
-            We'll deliver your note to <span className="font-semibold text-royal-gold">@{data.recipientInstagram}</span> shortly via Instagram DM.
-          </p>
-          <div className="bg-white rounded-xl p-4 border border-royal-gold/30 mb-8 shadow-gold-soft">
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 bg-royal-gold/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <Mail size={20} className="text-royal-gold" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900 text-sm">Keep an eye on your email</p>
-                <p className="text-slate-500 text-xs">We'll send a confirmation to {data.senderEmail} once delivered</p>
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              sessionStorage.removeItem('completedNoteId');
-              navigate('/');
-            }}
-            className="px-8 py-3 bg-gold-gradient text-white font-bold rounded-full shadow-gold-glow hover:scale-105 transition-transform"
-          >
-            Create Another Note
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Self delivery UI
   return (
-    <div className="flex flex-col h-screen bg-white items-center justify-center px-6">
+    <div className="flex flex-col h-screen bg-slate-50 items-center justify-center px-6">
       <div className="text-center max-w-md">
-        <div className="w-20 h-20 bg-gold-gradient rounded-full flex items-center justify-center mx-auto mb-6 shadow-gold-glow">
-          <span className="text-4xl">🎉</span>
-        </div>
+        <div className="text-6xl mb-6">🎉</div>
         <h1 className="text-3xl font-bold text-slate-900 mb-4">Your Note is Ready!</h1>
         <p className="text-slate-600 mb-8">
-          Share the link below with your recipient
+          {data.deliveryMethod === 'self'
+            ? 'Share the link below with your recipient'
+            : "We'll deliver your note soon!"}
         </p>
 
-        <div className="bg-white rounded-xl p-4 border border-royal-gold/30 mb-6 shadow-gold-soft">
-          <div className="flex gap-2">
-            <input
-              readOnly
-              value={shareUrl}
-              className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
-            />
-            <button
-              onClick={copyLink}
-              className="px-4 py-2 bg-gold-gradient text-white font-bold rounded-lg shadow-gold-glow"
-            >
-              {copied ? '✓ Copied' : 'Copy'}
-            </button>
+        {data.deliveryMethod === 'self' && (
+          <div className="bg-white rounded-xl p-4 border border-slate-200 mb-6">
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={shareUrl}
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+              />
+              <button
+                onClick={copyLink}
+                className="px-4 py-2 bg-royal-gold text-white font-bold rounded-lg"
+              >
+                {copied ? '✓' : 'Copy'}
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* Preview button */}
-        <button
-          onClick={previewNote}
-          className="w-full mb-4 px-8 py-3 bg-white border-2 border-royal-gold text-royal-gold font-bold rounded-full hover:bg-royal-gold/5 transition-colors flex items-center justify-center gap-2"
-        >
-          <span>👁️</span> Preview Your Note
-        </button>
+        )}
 
         <button
-          onClick={() => {
-            sessionStorage.removeItem('completedNoteId');
-            navigate('/');
-          }}
-          className="px-8 py-3 bg-gold-gradient text-white font-bold rounded-full shadow-gold-glow hover:scale-105 transition-transform"
+          onClick={() => navigate('/')}
+          className="px-8 py-3 bg-slate-900 text-white font-bold rounded-lg"
         >
           Create Another Note
         </button>
