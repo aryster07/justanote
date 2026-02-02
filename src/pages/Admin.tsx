@@ -59,7 +59,7 @@ export default function Admin() {
 // EmailJS configuration
   const EMAILJS_SERVICE_ID = 'service_h5xg96d';
   const EMAILJS_TEMPLATE_ID = 'template_gkanixq';
-  const EMAILJS_PUBLIC_KEY = 'Mf3NXKBr-Djk-Yezd';
+  const EMAILJS_PUBLIC_KEY = 'Mf3NXKBr-DJk-Yezd';
 
   // Listen for auth state changes
   useEffect(() => {
