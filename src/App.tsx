@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import Landing from './pages/Landing';
 import { RecipientStep, SongStep, MessageStep, DeliveryStep, SuccessPage } from './pages/CreateFlow';
 import ViewNote from './pages/ViewNote';
@@ -73,6 +73,7 @@ const NoteProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const resetNoteData = () => {
     setNoteData(initialNoteData);
     sessionStorage.removeItem('noteData');
+    sessionStorage.removeItem('completedNoteId'); // Clear completion flag
   };
 
   return (
@@ -85,7 +86,54 @@ const NoteProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 // Create flow wrapper component - now uses context
 const CreateFlowWrapper: React.FC = () => {
   const { step } = useParams<{ step: string }>();
-  const { noteData, updateNoteData } = useNoteContext();
+  const { noteData, updateNoteData, resetNoteData } = useNoteContext();
+  const navigate = useNavigate();
+
+  // Check if user has completed a note in this session
+  useEffect(() => {
+    const completedNoteId = sessionStorage.getItem('completedNoteId');
+    const currentPath = window.location.pathname;
+    
+    // If user completed a note and tries to access create flow, redirect to home
+    if (completedNoteId && currentPath.startsWith('/create')) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    // Enforce step order - prevent skipping steps via URL manipulation
+    const validSteps = ['recipient', 'song', 'message', 'delivery'];
+    const currentStepIndex = validSteps.indexOf(step || 'recipient');
+    
+    // Check if user is trying to skip steps
+    if (currentStepIndex > 0) {
+      // Check if previous steps have required data
+      const hasRecipientData = noteData.recipientName.trim() && noteData.vibe;
+      
+      if (currentStepIndex >= 1 && !hasRecipientData) {
+        // Missing recipient data, redirect to first step
+        navigate('/create/recipient', { replace: true });
+        return;
+      }
+      
+      if (currentStepIndex >= 3 && !noteData.message.trim()) {
+        // Missing message data, redirect to message step
+        navigate('/create/message', { replace: true });
+        return;
+      }
+    }
+
+    // Prevent back navigation after reaching success page
+    const handlePopState = (event: PopStateEvent) => {
+      const completedId = sessionStorage.getItem('completedNoteId');
+      if (completedId && window.location.pathname.startsWith('/create')) {
+        // User is trying to go back to create flow after completing
+        navigate('/', { replace: true });
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [step, noteData, navigate]);
 
   const stepComponents: Record<string, React.ReactNode> = {
     recipient: <RecipientStep data={noteData} updateData={updateNoteData} />,
@@ -109,6 +157,8 @@ const SuccessWrapper: React.FC = () => {
     // Save the current note data before resetting
     if (!savedData && noteData.recipientName) {
       setSavedData({ ...noteData, id });
+      // Mark this session as having completed a note
+      sessionStorage.setItem('completedNoteId', id || '');
     }
   }, [noteData, id, savedData]);
 

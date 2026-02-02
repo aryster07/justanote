@@ -1,9 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
+
+  // Clear any previous completed note session when landing page loads
+  useEffect(() => {
+    sessionStorage.removeItem('completedNoteId');
+  }, []);
+
+  const handleCreateNote = () => {
+    // Clear completion flag before starting new flow
+    sessionStorage.removeItem('completedNoteId');
+    navigate('/create/recipient');
+  };
 
   return (
     <div className="h-screen flex flex-col bg-white relative overflow-hidden">
@@ -36,7 +47,7 @@ const Landing: React.FC = () => {
           </p>
 
           <button
-            onClick={() => navigate('/create/recipient')}
+            onClick={handleCreateNote}
             className="w-full max-w-xs h-14 bg-gold-gradient text-white font-bold rounded-full 
               shadow-gold-glow hover:scale-105 transition-transform"
           >

@@ -637,7 +637,10 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
             </div>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => {
+              sessionStorage.removeItem('completedNoteId');
+              navigate('/');
+            }}
             className="px-8 py-3 bg-gold-gradient text-white font-bold rounded-full shadow-gold-glow hover:scale-105 transition-transform"
           >
             Create Another Note
@@ -684,7 +687,10 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
         </button>
 
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            sessionStorage.removeItem('completedNoteId');
+            navigate('/');
+          }}
           className="px-8 py-3 bg-gold-gradient text-white font-bold rounded-full shadow-gold-glow hover:scale-105 transition-transform"
         >
           Create Another Note
