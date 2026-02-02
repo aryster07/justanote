@@ -305,8 +305,9 @@ export default function Admin() {
       });
       
       // Send email confirmation to sender if they provided email
+      let emailSent = false;
       if (note?.senderEmail) {
-        const noteLink = `${window.location.origin}/note/${noteId}`;
+        const noteLink = `${window.location.origin}/view/${noteId}`;
         const vibe = getVibe(note.vibe || '1');
         
         try {
@@ -324,9 +325,18 @@ export default function Admin() {
             },
             EMAILJS_PUBLIC_KEY
           );
-        } catch {
-          // Don't block the delivery status update if email fails
+          emailSent = true;
+        } catch (emailErr: any) {
+          // Show error but don't block delivery status
+          alert(`Note marked as delivered, but email failed: ${emailErr?.text || emailErr?.message || 'Unknown error'}`);
         }
+      }
+      
+      // Show success message
+      if (emailSent) {
+        alert(`✅ Marked as delivered! Email sent to ${note?.senderEmail}`);
+      } else if (!note?.senderEmail) {
+        alert('✅ Marked as delivered! (No email to send - sender email not provided)');
       }
       
       // Update local state
@@ -392,7 +402,7 @@ export default function Admin() {
 
   // Copy link to clipboard
   const copyLink = (noteId: string) => {
-    const link = `${window.location.origin}/note/${noteId}`;
+    const link = `${window.location.origin}/view/${noteId}`;
     navigator.clipboard.writeText(link);
     setCopiedId(noteId);
     setTimeout(() => setCopiedId(null), 2000);
