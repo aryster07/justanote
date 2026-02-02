@@ -24,8 +24,7 @@ import {
   Calendar,
   LogOut,
   Filter,
-  BarChart3,
-  FileText
+  BarChart3
 } from 'lucide-react';
 
 interface Note extends NoteData {
@@ -812,78 +811,15 @@ export default function Admin() {
             {/* All Notes View */}
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <FileText className="w-6 h-6" />
-                All Notes Analytics
+                <BarChart3 className="w-6 h-6" />
+                Notes Analytics
               </h2>
               
-              {/* All Notes Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <TrendingUp className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.total}</p>
-                      <p className="text-sm text-gray-500">Total</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <UserIcon className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.self}</p>
-                      <p className="text-sm text-gray-500">Self Delivered</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                      <Send className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.admin}</p>
-                      <p className="text-sm text-gray-500">Admin Queue</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.delivered}</p>
-                      <p className="text-sm text-gray-500">Delivered</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">{allNotesStats.pending}</p>
-                      <p className="text-sm text-gray-500">Pending</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters */}
-              <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm mb-4">
+              {/* Filters First */}
+              <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Filter className="w-5 h-5 text-rose-500" />
-                  <h3 className="font-bold text-gray-900">Filters</h3>
+                  <h3 className="font-bold text-gray-900">Filter Analytics</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -966,43 +902,121 @@ export default function Admin() {
                     }}
                     className="ml-auto px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
                   >
-                    Clear Filters
+                    Reset Filters
                   </button>
                 </div>
               </div>
 
-              {/* Filtered Notes List */}
-              <div className="bg-white rounded-xl border border-rose-100 shadow-sm p-6">
-                <div className="text-center py-8">
-                  <BarChart3 className="w-12 h-12 text-rose-300 mx-auto mb-4" />
-                  <p className="text-gray-600 text-lg font-medium">
-                    {allNotes
-                      .filter(note => {
-                        // Date filter
-                        if (dateFilter.startDate || dateFilter.endDate) {
-                          if (!note.createdAt?.toDate) return false;
-                          const noteDate = note.createdAt.toDate();
-                          if (dateFilter.startDate && noteDate < new Date(dateFilter.startDate)) return false;
-                          if (dateFilter.endDate && noteDate > new Date(dateFilter.endDate + 'T23:59:59')) return false;
-                        }
-                        
-                        // Vibe filter
-                        if (vibeFilter !== 'all' && note.vibe !== vibeFilter) return false;
-                        
-                        // Delivery method filter
-                        if (deliveryMethodFilter !== 'all' && note.deliveryMethod !== deliveryMethodFilter) return false;
-                        
-                        // Status filter
-                        if (statusFilter !== 'all' && note.status !== statusFilter) return false;
-                        
-                        return true;
-                      }).length} notes match your filters
-                  </p>
-                  <p className="text-gray-400 text-sm mt-2">
-                    Note contents are private and not displayed here
-                  </p>
-                </div>
-              </div>
+              {/* Dynamic Stats based on filters */}
+              {(() => {
+                const filteredNotes = allNotes.filter(note => {
+                  // Date filter
+                  if (dateFilter.startDate || dateFilter.endDate) {
+                    if (!note.createdAt?.toDate) return false;
+                    const noteDate = note.createdAt.toDate();
+                    if (dateFilter.startDate && noteDate < new Date(dateFilter.startDate)) return false;
+                    if (dateFilter.endDate && noteDate > new Date(dateFilter.endDate + 'T23:59:59')) return false;
+                  }
+                  // Vibe filter
+                  if (vibeFilter !== 'all' && note.vibe !== vibeFilter) return false;
+                  // Delivery method filter
+                  if (deliveryMethodFilter !== 'all' && note.deliveryMethod !== deliveryMethodFilter) return false;
+                  // Status filter
+                  if (statusFilter !== 'all' && note.status !== statusFilter) return false;
+                  return true;
+                });
+
+                const filteredStats = {
+                  total: filteredNotes.length,
+                  self: filteredNotes.filter(n => n.deliveryMethod === 'self').length,
+                  admin: filteredNotes.filter(n => n.deliveryMethod === 'admin').length,
+                  delivered: filteredNotes.filter(n => n.status === 'delivered').length,
+                  pending: filteredNotes.filter(n => n.status === 'pending').length,
+                };
+
+                return (
+                  <>
+                    {/* Filtered Stats Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                      <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <TrendingUp className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900">{filteredStats.total}</p>
+                            <p className="text-sm text-gray-500">Total</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <UserIcon className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900">{filteredStats.self}</p>
+                            <p className="text-sm text-gray-500">Self</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                            <Send className="w-5 h-5 text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900">{filteredStats.admin}</p>
+                            <p className="text-sm text-gray-500">Admin</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900">{filteredStats.delivered}</p>
+                            <p className="text-sm text-gray-500">Delivered</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl p-4 border border-rose-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <Clock className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900">{filteredStats.pending}</p>
+                            <p className="text-sm text-gray-500">Pending</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Summary Box */}
+                    <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl border border-rose-100 shadow-sm p-6">
+                      <div className="text-center">
+                        <p className="text-gray-500 text-sm mb-1">
+                          {dateFilter.startDate || dateFilter.endDate || vibeFilter !== 'all' || deliveryMethodFilter !== 'all' || statusFilter !== 'all' 
+                            ? 'Filtered Results' 
+                            : 'All Time Stats'}
+                        </p>
+                        <p className="text-4xl font-bold text-rose-600 mb-2">{filteredStats.total}</p>
+                        <p className="text-gray-600">notes created</p>
+                        <p className="text-gray-400 text-xs mt-4">
+                          Note contents are private • Only counts shown
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </>
         )}
