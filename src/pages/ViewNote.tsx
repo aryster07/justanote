@@ -74,87 +74,62 @@ const ViewNote: React.FC = () => {
       audioRef.current = null;
     }
     
-    let timer: NodeJS.Timeout;
     let interactionHandlerAdded = false;
+    
+    // Create audio element immediately
+    const audio = new Audio(previewUrl);
+    audioRef.current = audio;
+    
+    audio.ontimeupdate = () => {
+      if (audioRef.current) {
+        const currentProgress = (audioRef.current.currentTime / audioRef.current.duration) * 100;
+        if (!isNaN(currentProgress)) {
+          setProgress(currentProgress);
+        }
+      }
+    };
+    audio.onended = () => {
+      setIsPlaying(false);
+      setProgress(0);
+    };
     
     // Handler for user interaction to enable audio
     const handleUserInteraction = () => {
-      if (!audioRef.current) {
-        const audio = new Audio(previewUrl);
-        audioRef.current = audio;
-        
-        audio.ontimeupdate = () => {
-          if (audioRef.current) {
-            const currentProgress = (audioRef.current.currentTime / audioRef.current.duration) * 100;
-            if (!isNaN(currentProgress)) {
-              setProgress(currentProgress);
-            }
-          }
-        };
-        audio.onended = () => {
-          setIsPlaying(false);
-          setProgress(0);
-        };
-        
-        audio.play().then(() => {
-          setIsPlaying(true);
-        }).catch(console.error);
-      } else if (!isPlaying) {
+      if (audioRef.current && !isPlaying) {
         audioRef.current.play().then(() => {
           setIsPlaying(true);
         }).catch(console.error);
       }
+      // Remove both listeners
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
     };
     
-    // Auto-play function that handles user interaction requirement
-    const attemptAutoPlay = () => {
-      const audio = new Audio(previewUrl);
-      audioRef.current = audio;
-      
-      audio.ontimeupdate = () => {
-        if (audioRef.current) {
-          const currentProgress = (audioRef.current.currentTime / audioRef.current.duration) * 100;
-          if (!isNaN(currentProgress)) {
-            setProgress(currentProgress);
-          }
-        }
-      };
-      audio.onended = () => {
-        setIsPlaying(false);
-        setProgress(0);
-      };
-      
-      audio.play().then(() => {
-        setIsPlaying(true);
-      }).catch(() => {
-        // Autoplay was blocked - wait for user interaction
-        if (!interactionHandlerAdded) {
-          document.addEventListener('click', handleUserInteraction, { once: true });
-          document.addEventListener('touchstart', handleUserInteraction, { once: true });
-          interactionHandlerAdded = true;
-        }
-      });
-    };
-    
-    // Small delay to let the page render first
-    timer = setTimeout(() => {
-      attemptAutoPlay();
-    }, 300);
+    // Attempt auto-play immediately
+    audio.play().then(() => {
+      setIsPlaying(true);
+    }).catch(() => {
+      // Autoplay was blocked - wait for user interaction
+      if (!interactionHandlerAdded) {
+        document.addEventListener('click', handleUserInteraction, { once: true });
+        document.addEventListener('touchstart', handleUserInteraction, { once: true });
+        interactionHandlerAdded = true;
+      }
+    });
     
     return () => {
-      clearTimeout(timer);
       if (interactionHandlerAdded) {
         document.removeEventListener('click', handleUserInteraction);
         document.removeEventListener('touchstart', handleUserInteraction);
       }
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.src = ''; // Clear src to free memory
+        audioRef.current.src = '';
         audioRef.current = null;
       }
       setProgress(0);
     };
-  }, [note, loading, isPlaying]);
+  }, [note?.id, loading]); // Only depend on note.id and loading, not isPlaying
 
   // Check if audio playback is available (iTunes songs have preview)
   const hasAudioPreview = note?.songData?.preview || note?.song?.preview;
@@ -325,42 +300,130 @@ const ViewNote: React.FC = () => {
       ctx.fillText(note.recipientName, canvas.width / 2, yPos);
       yPos += 80;
       
-      // Song section - Song bar (now above photo)
+      // Instagram-style Music Sticker
       if (note.song) {
-        const barWidth = 700;
-        const barHeight = 90;
-        const barX = (canvas.width - barWidth) / 2;
-        const barY = yPos;
+        const stickerWidth = 680;
+        const stickerHeight = 160;
+        const stickerX = (canvas.width - stickerWidth) / 2;
+        const stickerY = yPos;
+        const albumSize = 120;
         
-        // Bar background
+        // Create gradient background (Instagram music sticker style - dark with gradient)
+        const stickerGradient = ctx.createLinearGradient(stickerX, stickerY, stickerX + stickerWidth, stickerY + stickerHeight);
+        stickerGradient.addColorStop(0, '#1a1a2e');
+        stickerGradient.addColorStop(0.5, '#16213e');
+        stickerGradient.addColorStop(1, '#0f3460');
+        
+        // Draw rounded sticker background
         ctx.beginPath();
-        ctx.roundRect(barX, barY, barWidth, barHeight, 16);
-        ctx.fillStyle = 'rgba(190, 24, 93, 0.08)';
+        ctx.roundRect(stickerX, stickerY, stickerWidth, stickerHeight, 24);
+        ctx.fillStyle = stickerGradient;
         ctx.fill();
-        ctx.strokeStyle = 'rgba(190, 24, 93, 0.3)';
+        
+        // Add subtle inner glow/border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Music note icon
-        ctx.font = '36px Arial';
-        ctx.fillStyle = '#be185d';
+        // Album art placeholder (rounded square)
+        const albumX = stickerX + 20;
+        const albumY = stickerY + (stickerHeight - albumSize) / 2;
+        
+        // Draw album art background
+        ctx.beginPath();
+        ctx.roundRect(albumX, albumY, albumSize, albumSize, 12);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fill();
+        
+        // Try to load album cover
+        const albumCover = note.song.albumCover || note.song.coverUrl || note.songData?.albumCover;
+        if (albumCover) {
+          try {
+            const albumImg = new Image();
+            albumImg.crossOrigin = 'anonymous';
+            await new Promise((resolve, reject) => {
+              albumImg.onload = resolve;
+              albumImg.onerror = reject;
+              setTimeout(reject, 3000); // 3s timeout
+              albumImg.src = albumCover;
+            });
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(albumX, albumY, albumSize, albumSize, 12);
+            ctx.clip();
+            ctx.drawImage(albumImg, albumX, albumY, albumSize, albumSize);
+            ctx.restore();
+          } catch (e) {
+            // Draw music note if album art fails
+            ctx.font = '50px Arial';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.textAlign = 'center';
+            ctx.fillText('🎵', albumX + albumSize / 2, albumY + albumSize / 2 + 15);
+          }
+        } else {
+          // Draw music note placeholder
+          ctx.font = '50px Arial';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.textAlign = 'center';
+          ctx.fillText('🎵', albumX + albumSize / 2, albumY + albumSize / 2 + 15);
+        }
+        
+        // Song info section
+        const textX = albumX + albumSize + 20;
+        const textMaxWidth = stickerWidth - albumSize - 100;
+        
+        // Song title (white, bold)
+        ctx.font = 'bold 32px Arial';
+        ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'left';
-        ctx.fillText('🎵', barX + 25, barY + 55);
+        const titleText = note.song.title.length > 22 ? note.song.title.substring(0, 22) + '...' : note.song.title;
+        ctx.fillText(titleText, textX, stickerY + 55);
         
-        // Song title
-        ctx.font = 'bold 30px Arial';
-        ctx.fillStyle = '#1f2937';
-        const titleText = note.song.title.length > 28 ? note.song.title.substring(0, 28) + '...' : note.song.title;
-        ctx.fillText(titleText, barX + 80, barY + 40);
-        
-        // Artist name
+        // Artist name (light gray)
         ctx.font = '24px Arial';
-        ctx.fillStyle = '#6b7280';
-        const artistText = note.song.artist.length > 35 ? note.song.artist.substring(0, 35) + '...' : note.song.artist;
-        ctx.fillText(artistText, barX + 80, barY + 70);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        const artistText = note.song.artist.length > 28 ? note.song.artist.substring(0, 28) + '...' : note.song.artist;
+        ctx.fillText(artistText, textX, stickerY + 88);
+        
+        // Animated waveform bars (Instagram style)
+        const waveX = textX;
+        const waveY = stickerY + 105;
+        const barWidth = 6;
+        const barGap = 4;
+        const numBars = 28;
+        const maxBarHeight = 35;
+        
+        // Create gradient for waveform
+        const waveGradient = ctx.createLinearGradient(waveX, waveY, waveX + (barWidth + barGap) * numBars, waveY);
+        waveGradient.addColorStop(0, '#f472b6');
+        waveGradient.addColorStop(0.5, '#a855f7');
+        waveGradient.addColorStop(1, '#6366f1');
+        
+        ctx.fillStyle = waveGradient;
+        
+        // Draw waveform bars with varying heights (simulating audio visualization)
+        for (let i = 0; i < numBars; i++) {
+          // Create organic wave pattern
+          const progress = i / numBars;
+          const wave1 = Math.sin(progress * Math.PI * 3) * 0.4 + 0.6;
+          const wave2 = Math.sin(progress * Math.PI * 5 + 1) * 0.3;
+          const wave3 = Math.cos(progress * Math.PI * 2) * 0.2;
+          const height = Math.max(6, (wave1 + wave2 + wave3) * maxBarHeight);
+          
+          ctx.beginPath();
+          ctx.roundRect(
+            waveX + i * (barWidth + barGap),
+            waveY + (maxBarHeight - height) / 2,
+            barWidth,
+            height,
+            3
+          );
+          ctx.fill();
+        }
         
         ctx.textAlign = 'center';
-        yPos = barY + barHeight + 40;
+        yPos = stickerY + stickerHeight + 40;
       }
       
       // Photo if exists (now below song)
