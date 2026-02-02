@@ -652,6 +652,15 @@ const ViewNote: React.FC = () => {
 
       {/* Footer */}
       <footer className="p-6 text-center text-xs text-slate-400">
+        <a 
+          href="https://instagram.com/justanote.me" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-royal-gold hover:underline font-medium"
+        >
+          📷 @justanote.me
+        </a>
+        <span className="mx-2">•</span>
         Made with ❤️ by Just A Note
       </footer>
     </div>

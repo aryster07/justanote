@@ -51,6 +51,16 @@ const Landing: React.FC = () => {
 
       {/* Footer */}
       <footer className="p-6 text-center text-xs text-slate-400">
+        <div className="mb-2">
+          <a 
+            href="https://instagram.com/justanote.me" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-royal-gold hover:underline font-medium"
+          >
+            📷 @justanote.me
+          </a>
+        </div>
         Made with <span className="text-royal-gold">💛</span> by{' '}
         <a 
           href="https://instagram.com/7frames_aryan" 
