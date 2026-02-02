@@ -204,6 +204,7 @@ export default function Admin() {
     const unsubscribe: Unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        console.log('Firestore snapshot received:', snapshot.docs.length, 'documents');
         const allNotes: Note[] = snapshot.docs.map(doc => ({
           ...doc.data(),
           id: doc.id,
@@ -234,11 +235,13 @@ export default function Admin() {
       },
       (err) => {
         console.error('Error listening to notes:', err);
-        // If composite index is missing, show helpful error
+        // If composite index is missing, show helpful error with the link
         if (err.code === 'failed-precondition') {
-          setError('Database index required. Please check Firebase Console for the index creation link.');
+          // Firebase error message contains a direct link to create the index
+          console.error('INDEX REQUIRED - Click the link in this error:', err.message);
+          setError('Database index required. Check browser console (F12) for the index creation link.');
         } else {
-          setError('Failed to load notes. Pull to refresh.');
+          setError(`Failed to load notes: ${err.message || 'Unknown error'}`);
         }
         setLoading(false);
       }
