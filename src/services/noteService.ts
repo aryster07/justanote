@@ -1,7 +1,6 @@
 import { collection, doc, setDoc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { NoteData } from '../types';
-import { generateEncryptionKey, encryptData, decryptData } from '../utils/encryption';
 
 // ============ VALIDATION CONSTANTS ============
 const MAX_NAME_LENGTH = 100;
@@ -214,8 +213,7 @@ export const compressImage = (file: File): Promise<string> => {
 };
 
 // Save note to Firestore with validation and sanitization
-// Returns { id, encryptionKey } - encryptionKey is included in URL fragment for privacy
-export const saveNote = async (data: NoteData): Promise<{ id: string; encryptionKey: string }> => {
+export const saveNote = async (data: NoteData): Promise<{ id: string }> => {
   // Validate input data
   const validation = validateNoteData(data);
   if (!validation.isValid) {
@@ -224,9 +222,6 @@ export const saveNote = async (data: NoteData): Promise<{ id: string; encryption
 
   const id = generateId();
   const docRef = doc(collection(db, 'notes'), id);
-  
-  // Generate encryption key for this note
-  const encryptionKey = generateEncryptionKey();
 
   let photoUrl = null;
   if (data.photo) {
@@ -234,7 +229,6 @@ export const saveNote = async (data: NoteData): Promise<{ id: string; encryption
       photoUrl = await compressImage(data.photo);
     } catch (error) {
       console.error('Image compression failed:', error);
-      // Continue without photo if compression fails
     }
   }
 
@@ -252,8 +246,7 @@ export const saveNote = async (data: NoteData): Promise<{ id: string; encryption
     deliveryMethod: data.deliveryMethod === 'admin' ? 'admin' : 'self',
   };
 
-  // Encrypt sensitive data
-  const sensitiveData = JSON.stringify({
+  const docData = cleanData({
     recipientName: sanitizedData.recipientName,
     senderName: sanitizedData.senderName,
     message: sanitizedData.message,
@@ -261,39 +254,25 @@ export const saveNote = async (data: NoteData): Promise<{ id: string; encryption
     songData: sanitizedData.songData,
     photoUrl,
     isAnonymous: sanitizedData.isAnonymous,
-  });
-  
-  const encryptedData = await encryptData(sensitiveData, encryptionKey);
-
-  const docData = cleanData({
-    // Encrypted content - only readable with key from URL
-    encryptedData,
-    // Store encryption key ONLY for admin-delivered notes (so admin can copy full link)
-    // For self-delivery, key is only in URL fragment and never stored
-    encryptionKey: sanitizedData.deliveryMethod === 'admin' ? encryptionKey : null,
-    // Unencrypted metadata (needed for admin delivery)
     vibe: sanitizedData.vibe,
     recipientInstagram: sanitizedData.recipientInstagram,
     senderEmail: sanitizedData.senderEmail,
     deliveryMethod: sanitizedData.deliveryMethod,
-    // Tracking
     createdAt: serverTimestamp(),
     views: 0,
     viewCount: 0,
     status: sanitizedData.deliveryMethod === 'admin' ? 'pending' : 'delivered',
     deliveredAt: sanitizedData.deliveryMethod === 'admin' ? null : serverTimestamp(),
-    // Privacy tracking
-    isEncrypted: true,
     firstViewedAt: null,
     firstViewerInfo: null,
   });
 
   await setDoc(docRef, docData);
-  return { id, encryptionKey };
+  return { id };
 };
 
-// Get note from Firestore - requires encryption key to decrypt content
-export const getNote = async (id: string, encryptionKey?: string): Promise<NoteData | null> => {
+// Get note from Firestore
+export const getNote = async (id: string): Promise<NoteData | null> => {
   // Validate ID format to prevent injection
   if (!id || typeof id !== 'string' || id.length > 20 || !/^[a-zA-Z0-9]+$/.test(id)) {
     return null;
@@ -305,84 +284,7 @@ export const getNote = async (id: string, encryptionKey?: string): Promise<NoteD
   if (!docSnap.exists()) return null;
 
   const data = docSnap.data();
-  
-  // Check if note is encrypted
-  if (data.isEncrypted && data.encryptedData) {
-    if (!encryptionKey) {
-      // Return minimal data without content
-      return {
-        id: docSnap.id,
-        recipientName: '[Encrypted]',
-        vibe: data.vibe ? sanitizeString(data.vibe) : '',
-        song: null,
-        songData: null,
-        message: '[This note is encrypted. The link may be incomplete.]',
-        photoUrl: null,
-        isAnonymous: true,
-        senderName: '',
-        deliveryMethod: data.deliveryMethod === 'admin' ? 'admin' : 'self',
-        recipientInstagram: sanitizeInstagram(data.recipientInstagram || ''),
-        senderEmail: sanitizeEmail(data.senderEmail || ''),
-        status: data.status || 'delivered',
-        createdAt: data.createdAt,
-        viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
-        photo: null,
-        firstViewedAt: data.firstViewedAt || null,
-        wasViewedBefore: data.viewCount > 0,
-      };
-    }
-    
-    try {
-      // Decrypt the sensitive data
-      const decryptedJson = await decryptData(data.encryptedData, encryptionKey);
-      const decryptedData = JSON.parse(decryptedJson);
-      
-      return {
-        id: docSnap.id,
-        recipientName: sanitizeName(decryptedData.recipientName || ''),
-        vibe: data.vibe ? sanitizeString(data.vibe) : '',
-        song: decryptedData.song || null,
-        songData: decryptedData.songData || null,
-        message: sanitizeMessage(decryptedData.message || ''),
-        photoUrl: decryptedData.photoUrl || null,
-        isAnonymous: Boolean(decryptedData.isAnonymous ?? true),
-        senderName: sanitizeName(decryptedData.senderName || ''),
-        deliveryMethod: data.deliveryMethod === 'admin' ? 'admin' : 'self',
-        recipientInstagram: sanitizeInstagram(data.recipientInstagram || ''),
-        senderEmail: sanitizeEmail(data.senderEmail || ''),
-        status: data.status || 'delivered',
-        createdAt: data.createdAt,
-        viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
-        photo: null,
-        firstViewedAt: data.firstViewedAt || null,
-        wasViewedBefore: data.viewCount > 0,
-      };
-    } catch (error) {
-      console.error('Decryption failed:', error);
-      return {
-        id: docSnap.id,
-        recipientName: '[Decryption Failed]',
-        vibe: data.vibe ? sanitizeString(data.vibe) : '',
-        song: null,
-        songData: null,
-        message: '[Failed to decrypt note. The link may be invalid or corrupted.]',
-        photoUrl: null,
-        isAnonymous: true,
-        senderName: '',
-        deliveryMethod: data.deliveryMethod === 'admin' ? 'admin' : 'self',
-        recipientInstagram: '',
-        senderEmail: '',
-        status: data.status || 'delivered',
-        createdAt: data.createdAt,
-        viewCount: 0,
-        photo: null,
-        firstViewedAt: null,
-        wasViewedBefore: false,
-      };
-    }
-  }
-  
-  // Legacy unencrypted notes (for backwards compatibility)
+
   return {
     id: docSnap.id,
     recipientName: sanitizeName(data.recipientName || ''),

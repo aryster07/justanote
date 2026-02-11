@@ -41,10 +41,7 @@ const ViewNote: React.FC = () => {
 
     const fetchNote = async () => {
       try {
-        // Extract encryption key from URL fragment (after #)
-        const encryptionKey = window.location.hash.slice(1) || undefined;
-        
-        const data = await getNote(id, encryptionKey);
+        const data = await getNote(id);
         if (data) {
           setNote(data);
           // Increment views and check if it was already viewed
@@ -324,73 +321,69 @@ const ViewNote: React.FC = () => {
       canvas.width = 1080;
       canvas.height = 1920;
       
-      // Background gradient - light, elegant white/rose theme
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, '#fff5f5');
-      gradient.addColorStop(0.5, '#ffffff');
-      gradient.addColorStop(1, '#fef2f2');
+      // Pink gradient background - Instagram story style
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, '#ff6b9d');
+      gradient.addColorStop(0.3, '#f472b6');
+      gradient.addColorStop(0.6, '#ec4899');
+      gradient.addColorStop(1, '#db2777');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Draw decorative soft pink circles
-      ctx.fillStyle = 'rgba(244, 114, 182, 0.08)';
-      ctx.beginPath();
-      ctx.arc(100, 200, 200, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(980, 1700, 250, 0, Math.PI * 2);
-      ctx.fill();
+      // Add subtle pattern overlay
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const size = Math.random() * 200 + 50;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
       
       let yPos = 200;
       
       // Vibe emoji
-      ctx.font = '100px Arial';
+      ctx.font = '120px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(vibe?.emoji || '💌', canvas.width / 2, yPos);
-      yPos += 60;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(vibe?.emoji || '\ud83d\udc8c', canvas.width / 2, yPos);
+      yPos += 80;
       
       // Vibe label
       if (vibe?.label) {
-        ctx.font = 'bold 32px Arial';
-        ctx.fillStyle = '#be185d';
-        ctx.fillText(vibe.label, canvas.width / 2, yPos);
-        yPos += 60;
+        ctx.font = 'bold 36px Arial';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fillText(vibe.label.toUpperCase(), canvas.width / 2, yPos);
+        yPos += 80;
       }
       
       // "A note for" text
-      ctx.font = '28px Arial';
-      ctx.fillStyle = '#6b7280';
+      ctx.font = '32px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.fillText('A note for', canvas.width / 2, yPos);
-      yPos += 50;
+      yPos += 60;
       
       // Recipient name
-      ctx.font = 'bold 56px Georgia';
-      ctx.fillStyle = '#be185d';
+      ctx.font = 'bold 64px Georgia';
+      ctx.fillStyle = '#ffffff';
       ctx.fillText(note.recipientName, canvas.width / 2, yPos);
-      yPos += 80;
+      yPos += 100;
       
       // Instagram-style Music Sticker
       if (note.song) {
-        const stickerWidth = 680;
+        const stickerWidth = 700;
         const stickerHeight = 160;
         const stickerX = (canvas.width - stickerWidth) / 2;
         const stickerY = yPos;
         const albumSize = 120;
         
-        // Create gradient background (Instagram music sticker style - dark with gradient)
-        const stickerGradient = ctx.createLinearGradient(stickerX, stickerY, stickerX + stickerWidth, stickerY + stickerHeight);
-        stickerGradient.addColorStop(0, '#1a1a2e');
-        stickerGradient.addColorStop(0.5, '#16213e');
-        stickerGradient.addColorStop(1, '#0f3460');
-        
-        // Draw rounded sticker background
+        // Create glass effect background 
         ctx.beginPath();
         ctx.roundRect(stickerX, stickerY, stickerWidth, stickerHeight, 24);
-        ctx.fillStyle = stickerGradient;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.fill();
-        
-        // Add subtle inner glow/border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 2;
         ctx.stroke();
         
@@ -401,7 +394,7 @@ const ViewNote: React.FC = () => {
         // Draw album art background
         ctx.beginPath();
         ctx.roundRect(albumX, albumY, albumSize, albumSize, 12);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.fill();
         
         // Try to load album cover
@@ -413,7 +406,7 @@ const ViewNote: React.FC = () => {
             await new Promise((resolve, reject) => {
               albumImg.onload = resolve;
               albumImg.onerror = reject;
-              setTimeout(reject, 3000); // 3s timeout
+              setTimeout(reject, 3000);
               albumImg.src = albumCover;
             });
             
@@ -424,23 +417,20 @@ const ViewNote: React.FC = () => {
             ctx.drawImage(albumImg, albumX, albumY, albumSize, albumSize);
             ctx.restore();
           } catch (e) {
-            // Draw music note if album art fails
             ctx.font = '50px Arial';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.textAlign = 'center';
-            ctx.fillText('🎵', albumX + albumSize / 2, albumY + albumSize / 2 + 15);
+            ctx.fillText('\ud83c\udfb5', albumX + albumSize / 2, albumY + albumSize / 2 + 15);
           }
         } else {
-          // Draw music note placeholder
           ctx.font = '50px Arial';
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
           ctx.textAlign = 'center';
-          ctx.fillText('🎵', albumX + albumSize / 2, albumY + albumSize / 2 + 15);
+          ctx.fillText('\ud83c\udfb5', albumX + albumSize / 2, albumY + albumSize / 2 + 15);
         }
         
         // Song info section
         const textX = albumX + albumSize + 20;
-        const textMaxWidth = stickerWidth - albumSize - 100;
         
         // Song title (white, bold)
         ctx.font = 'bold 32px Arial';
@@ -449,13 +439,13 @@ const ViewNote: React.FC = () => {
         const titleText = note.song.title.length > 22 ? note.song.title.substring(0, 22) + '...' : note.song.title;
         ctx.fillText(titleText, textX, stickerY + 55);
         
-        // Artist name (light gray)
+        // Artist name (light)
         ctx.font = '24px Arial';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
         const artistText = note.song.artist.length > 28 ? note.song.artist.substring(0, 28) + '...' : note.song.artist;
         ctx.fillText(artistText, textX, stickerY + 88);
         
-        // Animated waveform bars (Instagram style)
+        // Waveform bars
         const waveX = textX;
         const waveY = stickerY + 105;
         const barWidth = 6;
@@ -463,17 +453,9 @@ const ViewNote: React.FC = () => {
         const numBars = 28;
         const maxBarHeight = 35;
         
-        // Create gradient for waveform
-        const waveGradient = ctx.createLinearGradient(waveX, waveY, waveX + (barWidth + barGap) * numBars, waveY);
-        waveGradient.addColorStop(0, '#f472b6');
-        waveGradient.addColorStop(0.5, '#a855f7');
-        waveGradient.addColorStop(1, '#6366f1');
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         
-        ctx.fillStyle = waveGradient;
-        
-        // Draw waveform bars with varying heights (simulating audio visualization)
         for (let i = 0; i < numBars; i++) {
-          // Create organic wave pattern
           const progress = i / numBars;
           const wave1 = Math.sin(progress * Math.PI * 3) * 0.4 + 0.6;
           const wave2 = Math.sin(progress * Math.PI * 5 + 1) * 0.3;
@@ -492,10 +474,10 @@ const ViewNote: React.FC = () => {
         }
         
         ctx.textAlign = 'center';
-        yPos = stickerY + stickerHeight + 40;
+        yPos = stickerY + stickerHeight + 50;
       }
       
-      // Photo if exists (now below song)
+      // Photo if exists
       if (note.photoUrl) {
         try {
           const img = new Image();
@@ -509,7 +491,6 @@ const ViewNote: React.FC = () => {
           const imgSize = 400;
           const imgX = (canvas.width - imgSize) / 2;
           
-          // Draw rounded rectangle clip
           ctx.save();
           ctx.beginPath();
           ctx.roundRect(imgX, yPos, imgSize, imgSize, 20);
@@ -517,14 +498,13 @@ const ViewNote: React.FC = () => {
           ctx.drawImage(img, imgX, yPos, imgSize, imgSize);
           ctx.restore();
           
-          // Rose border
-          ctx.strokeStyle = '#f472b6';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
           ctx.lineWidth = 4;
           ctx.beginPath();
           ctx.roundRect(imgX, yPos, imgSize, imgSize, 20);
           ctx.stroke();
           
-          yPos += imgSize + 40;
+          yPos += imgSize + 50;
         } catch (e) {
           console.log('Could not load photo for share');
         }
@@ -536,20 +516,15 @@ const ViewNote: React.FC = () => {
         ? note.message.substring(0, maxMessageLength) + '...' 
         : note.message;
       
-      // Message box
-      const msgBoxWidth = 900;
-      const msgBoxX = (canvas.width - msgBoxWidth) / 2;
-      const msgBoxY = yPos;
-      
-      ctx.font = '26px Arial';
-      ctx.fillStyle = '#374151';
+      ctx.font = '28px Arial';
+      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       
       // Word wrap message
       const words = displayMessage.split(' ');
       let line = '';
       const maxWidth = 850;
-      const lineHeight = 38;
+      const lineHeight = 42;
       let messageLines: string[] = [];
       
       for (const word of words) {
@@ -564,40 +539,40 @@ const ViewNote: React.FC = () => {
       }
       messageLines.push(line.trim());
       
-      // Draw message with quotes
-      ctx.font = '60px Georgia';
-      ctx.fillStyle = 'rgba(190, 24, 93, 0.2)';
-      ctx.fillText('"', canvas.width / 2 - 400, yPos + 20);
+      // Draw quote marks
+      ctx.font = '80px Georgia';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.fillText('\u201c', canvas.width / 2 - 380, yPos + 10);
       
-      ctx.font = '26px Arial';
-      ctx.fillStyle = '#374151';
+      ctx.font = '28px Arial';
+      ctx.fillStyle = '#ffffff';
       for (const msgLine of messageLines) {
         ctx.fillText(msgLine, canvas.width / 2, yPos);
         yPos += lineHeight;
       }
       
-      ctx.font = '60px Georgia';
-      ctx.fillStyle = 'rgba(190, 24, 93, 0.2)';
-      ctx.fillText('"', canvas.width / 2 + 400, yPos - 20);
+      ctx.font = '80px Georgia';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.fillText('\u201d', canvas.width / 2 + 380, yPos - 20);
       
       yPos += 50;
       
       // Sender
-      ctx.font = 'italic 26px Arial';
-      ctx.fillStyle = '#6b7280';
+      ctx.font = 'italic 28px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       if (note.isAnonymous) {
-        ctx.fillText('Sent anonymously with ❤️', canvas.width / 2, yPos);
+        ctx.fillText('Sent anonymously with \u2764\ufe0f', canvas.width / 2, yPos);
       } else {
         ctx.fillText('With love, ' + note.senderName, canvas.width / 2, yPos);
       }
       
       // Footer branding
-      ctx.font = 'bold 36px Arial';
-      ctx.fillStyle = '#be185d';
-      ctx.fillText('Just A Note 💌', canvas.width / 2, canvas.height - 120);
+      ctx.font = 'bold 40px Arial';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Just A Note \ud83d\udc8c', canvas.width / 2, canvas.height - 120);
       
-      ctx.font = '22px Arial';
-      ctx.fillStyle = '#9ca3af';
+      ctx.font = '24px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.fillText('justanote.me', canvas.width / 2, canvas.height - 70);
       
       // Convert to blob and download/share
@@ -612,7 +587,7 @@ const ViewNote: React.FC = () => {
             await navigator.share({
               files: [file],
               title: 'Just A Note',
-              text: `A special note for ${note.recipientName} 💌`,
+              text: `A special note for ${note.recipientName} \ud83d\udc8c`,
             });
             return;
           } catch (err) {

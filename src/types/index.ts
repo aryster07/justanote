@@ -48,10 +48,6 @@ export interface NoteData {
   // Privacy tracking fields
   firstViewedAt?: any;
   wasViewedBefore?: boolean;
-  // Encryption - only stored for admin-delivered notes
-  encryptionKey?: string;
-  encryptedData?: string;
-  isEncrypted?: boolean;
 }
 
 export const VIBES: Vibe[] = [

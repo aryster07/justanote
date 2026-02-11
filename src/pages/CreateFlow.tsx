@@ -462,10 +462,8 @@ export const DeliveryStep: React.FC<StepProps> = ({ data, updateData }) => {
 
     setLoading(true);
     try {
-      // saveNote now returns { id, encryptionKey }
-      const { id: noteId, encryptionKey } = await saveNote(data);
-      // Pass encryption key via URL fragment (never sent to server)
-      navigate(`/success/${noteId}#${encryptionKey}`);
+      const { id: noteId } = await saveNote(data);
+      navigate(`/success/${noteId}`);
     } catch (error) {
       console.error('Error saving note:', error);
       alert('Failed to save note. Please try again.');
@@ -638,10 +636,7 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   
-  // Get encryption key from URL fragment (after #)
-  const encryptionKey = window.location.hash.slice(1);
-  // Build share URL with encryption key in fragment
-  const shareUrl = `${window.location.origin}/view/${data.id}${encryptionKey ? `#${encryptionKey}` : ''}`;
+  const shareUrl = `${window.location.origin}/view/${data.id}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -662,9 +657,6 @@ export const SuccessPage: React.FC<{ data: NoteData }> = ({ data }) => {
 
         {data.deliveryMethod === 'self' && (
           <div className="bg-white rounded-xl p-4 border border-slate-200 mb-6">
-            <p className="text-xs text-amber-600 mb-3 font-medium">
-              🔐 This link is encrypted. Share carefully - it can only be securely viewed once!
-            </p>
             <div className="flex gap-2">
               <input
                 readOnly
