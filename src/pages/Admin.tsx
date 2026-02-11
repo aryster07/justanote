@@ -467,9 +467,11 @@ export default function Admin() {
     }
   };
 
-  // Copy link to clipboard
-  const copyLink = (noteId: string) => {
-    const link = `${window.location.origin}/view/${noteId}`;
+  // Copy link to clipboard (includes encryption key for admin-delivered notes)
+  const copyLink = (noteId: string, encryptionKey?: string) => {
+    const link = encryptionKey 
+      ? `${window.location.origin}/view/${noteId}#${encryptionKey}`
+      : `${window.location.origin}/view/${noteId}`;
     navigator.clipboard.writeText(link);
     setCopiedId(noteId);
     setTimeout(() => setCopiedId(null), 2000);
@@ -766,7 +768,7 @@ export default function Admin() {
                     {/* Actions */}
                     <div className="flex flex-wrap gap-2">
                       <button
-                        onClick={() => copyLink(note.id)}
+                        onClick={() => copyLink(note.id, note.encryptionKey)}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                       >
                         {copiedId === note.id ? (

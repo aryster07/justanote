@@ -45,6 +45,13 @@ export interface NoteData {
   createdAt?: any;
   status?: 'pending' | 'delivered';
   viewCount?: number;
+  // Privacy tracking fields
+  firstViewedAt?: any;
+  wasViewedBefore?: boolean;
+  // Encryption - only stored for admin-delivered notes
+  encryptionKey?: string;
+  encryptedData?: string;
+  isEncrypted?: boolean;
 }
 
 export const VIBES: Vibe[] = [

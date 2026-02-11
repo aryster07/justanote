@@ -27,6 +27,7 @@ const ViewNote: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [wasViewedBefore, setWasViewedBefore] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -39,11 +40,18 @@ const ViewNote: React.FC = () => {
 
     const fetchNote = async () => {
       try {
-        const data = await getNote(id);
+        // Extract encryption key from URL fragment (after #)
+        const encryptionKey = window.location.hash.slice(1) || undefined;
+        
+        const data = await getNote(id, encryptionKey);
         if (data) {
           setNote(data);
-          // Increment views in background, don't block on it
-          incrementViews(id).catch(console.error);
+          // Increment views and check if it was already viewed
+          incrementViews(id).then(result => {
+            if (result && !result.isFirstView) {
+              setWasViewedBefore(true);
+            }
+          }).catch(console.error);
         }
       } catch (error) {
         console.error('Error fetching note:', error);
@@ -162,6 +170,9 @@ const ViewNote: React.FC = () => {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
+        // Ensure audio is unmuted and at full volume before playing
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1;
         audioRef.current.play().catch(console.error);
       }
       setIsPlaying(!isPlaying);
@@ -591,8 +602,17 @@ const ViewNote: React.FC = () => {
         </div>
       </div>
 
+      {/* Warning banner if note was previously viewed */}
+      {wasViewedBefore && (
+        <div className="absolute top-6 left-0 right-0 z-50 px-4">
+          <div className="bg-amber-500/90 backdrop-blur-sm text-white text-center py-2 px-4 rounded-xl text-sm font-medium shadow-lg">
+            ⚠️ This note was already opened before. Someone else may have seen it.
+          </div>
+        </div>
+      )}
+
       {/* Header - Instagram story style */}
-      <header className="relative z-40 p-4 pt-8 flex justify-between items-center">
+      <header className={`relative z-40 p-4 ${wasViewedBefore ? 'pt-16' : 'pt-8'} flex justify-between items-center`}>
         <Link to="/" className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/30 transition-colors">
           <ArrowLeft size={20} />
         </Link>
