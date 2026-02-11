@@ -1138,15 +1138,21 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    {/* Notes List */}
-                    <div className="space-y-4">
-                      {filteredNotes.length === 0 ? (
-                        <div className="text-center py-12 bg-white rounded-xl border border-rose-100">
-                          <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">No notes match the current filters</p>
-                        </div>
-                      ) : (
-                        filteredNotes.map((note) => {
+                    {/* Notes List — only show admin-delivery notes (self-delivered are stats only) */}
+                    {(() => {
+                      const adminOnlyNotes = filteredNotes.filter(n => n.deliveryMethod === 'admin');
+                      return (
+                        <div className="space-y-4">
+                          {adminOnlyNotes.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-xl border border-rose-100">
+                              <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                              <p className="text-gray-500">No admin-delivery notes match the current filters</p>
+                              {filteredNotes.length > 0 && (
+                                <p className="text-gray-400 text-sm mt-1">{filteredNotes.filter(n => n.deliveryMethod === 'self').length} self-delivered notes (stats only)</p>
+                              )}
+                            </div>
+                          ) : (
+                            adminOnlyNotes.map((note) => {
                           const noteVibe = VIBES.find(v => v.id === note.vibe) || { emoji: '❤️', label: 'Love' };
                           return (
                             <div key={note.id} className="bg-white rounded-xl border border-rose-100 shadow-sm overflow-hidden">
@@ -1201,6 +1207,8 @@ export default function Admin() {
                         })
                       )}
                     </div>
+                      );
+                    })()}
                   </>
                 );
               })()}
