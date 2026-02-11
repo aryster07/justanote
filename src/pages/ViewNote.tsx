@@ -29,6 +29,7 @@ const ViewNote: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState(0);
+  const [autoPlayBlocked, setAutoPlayBlocked] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -60,7 +61,7 @@ const ViewNote: React.FC = () => {
     };
   }, [id]);
 
-  // Auto-play song when note loads
+  // Force auto-play song when note loads
   useEffect(() => {
     if (!note || loading) return;
     
@@ -70,14 +71,17 @@ const ViewNote: React.FC = () => {
     // Stop any existing audio first
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.src = ''; // Clear src to free memory
+      audioRef.current.src = '';
       audioRef.current = null;
     }
     
     let interactionHandlerAdded = false;
+    let cancelled = false;
     
-    // Create audio element immediately
+    // Create audio element
     const audio = new Audio(previewUrl);
+    audio.crossOrigin = 'anonymous';
+    audio.preload = 'auto';
     audioRef.current = audio;
     
     audio.ontimeupdate = () => {
@@ -95,32 +99,106 @@ const ViewNote: React.FC = () => {
     
     // Handler for user interaction to enable audio
     const handleUserInteraction = () => {
-      if (audioRef.current && !isPlaying) {
+      if (cancelled) return;
+      if (audioRef.current) {
+        audioRef.current.muted = false;
+        audioRef.current.volume = 1;
         audioRef.current.play().then(() => {
           setIsPlaying(true);
+          setAutoPlayBlocked(false);
         }).catch(console.error);
       }
-      // Remove both listeners
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('touchend', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
     };
     
-    // Attempt auto-play immediately
-    audio.play().then(() => {
-      setIsPlaying(true);
-    }).catch(() => {
-      // Autoplay was blocked - wait for user interaction
+    const showTapOverlay = () => {
+      if (cancelled) return;
+      setAutoPlayBlocked(true);
       if (!interactionHandlerAdded) {
         document.addEventListener('click', handleUserInteraction, { once: true });
         document.addEventListener('touchstart', handleUserInteraction, { once: true });
+        document.addEventListener('touchend', handleUserInteraction, { once: true });
+        document.addEventListener('keydown', handleUserInteraction, { once: true });
         interactionHandlerAdded = true;
       }
-    });
+    };
+
+    // Strategy: Try multiple approaches to force autoplay
+    const tryAutoPlay = async () => {
+      if (cancelled) return;
+
+      // Attempt 1: Direct unmuted play
+      try {
+        audio.volume = 1;
+        audio.muted = false;
+        await audio.play();
+        if (!cancelled) {
+          setIsPlaying(true);
+          setAutoPlayBlocked(false);
+        }
+        return;
+      } catch (_) { /* blocked */ }
+
+      // Attempt 2: Start muted (always allowed), then unmute
+      try {
+        audio.muted = true;
+        audio.volume = 0;
+        await audio.play();
+        // Playing muted — now try to unmute
+        audio.muted = false;
+        audio.volume = 1;
+        // Check if browser paused it after unmute
+        await new Promise(r => setTimeout(r, 100));
+        if (!audio.paused && !cancelled) {
+          setIsPlaying(true);
+          setAutoPlayBlocked(false);
+          return;
+        }
+        // Browser paused on unmute — keep playing muted and show overlay
+        if (audio.paused) {
+          audio.muted = true;
+          audio.volume = 0;
+          await audio.play().catch(() => {});
+        }
+      } catch (_) { /* both failed */ }
+
+      // Attempt 3: AudioContext unlock trick
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const source = ctx.createMediaElementSource(audio);
+          source.connect(ctx.destination);
+          await ctx.resume();
+          audio.muted = false;
+          audio.volume = 1;
+          await audio.play();
+          if (!audio.paused && !cancelled) {
+            setIsPlaying(true);
+            setAutoPlayBlocked(false);
+            return;
+          }
+        }
+      } catch (_) { /* AudioContext also blocked */ }
+
+      // All attempts failed — show tap overlay
+      if (!cancelled) {
+        showTapOverlay();
+      }
+    };
+
+    tryAutoPlay();
     
     return () => {
+      cancelled = true;
       if (interactionHandlerAdded) {
         document.removeEventListener('click', handleUserInteraction);
         document.removeEventListener('touchstart', handleUserInteraction);
+        document.removeEventListener('touchend', handleUserInteraction);
+        document.removeEventListener('keydown', handleUserInteraction);
       }
       if (audioRef.current) {
         audioRef.current.pause();
@@ -129,7 +207,7 @@ const ViewNote: React.FC = () => {
       }
       setProgress(0);
     };
-  }, [note?.id, loading]); // Only depend on note.id and loading, not isPlaying
+  }, [note?.id, loading]);
 
   // Check if audio playback is available (iTunes songs have preview)
   const hasAudioPreview = note?.songData?.preview || note?.song?.preview;
@@ -581,6 +659,42 @@ const ViewNote: React.FC = () => {
       <div className="absolute bottom-40 -right-20 w-80 h-80 bg-white/20 rounded-full blur-3xl" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
       
+      {/* Tap to play overlay - shown when auto-play is blocked */}
+      {autoPlayBlocked && hasAudioPreview && (
+        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-md cursor-pointer"
+          onClick={() => {
+            if (audioRef.current) {
+              audioRef.current.muted = false;
+              audioRef.current.volume = 1;
+              audioRef.current.play().then(() => {
+                setIsPlaying(true);
+                setAutoPlayBlocked(false);
+              }).catch(console.error);
+            }
+          }}
+          onTouchEnd={() => {
+            if (audioRef.current) {
+              audioRef.current.muted = false;
+              audioRef.current.volume = 1;
+              audioRef.current.play().then(() => {
+                setIsPlaying(true);
+                setAutoPlayBlocked(false);
+              }).catch(console.error);
+            }
+          }}
+        >
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-xl flex items-center justify-center animate-pulse">
+              <Play className="w-10 h-10 text-white ml-1" fill="white" />
+            </div>
+            <p className="text-white font-bold text-xl">Tap anywhere to play</p>
+            {note?.song && (
+              <p className="text-white/70 text-sm">{note.song.title} — {note.song.artist}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Story progress bar */}
       <div className="absolute top-0 left-0 right-0 z-50 px-3 pt-3 safe-area-top">
         <div className="h-1 bg-white/30 rounded-full overflow-hidden">

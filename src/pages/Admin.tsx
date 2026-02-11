@@ -1106,20 +1106,68 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    {/* Summary Box */}
-                    <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl border border-rose-100 shadow-sm p-6">
-                      <div className="text-center">
-                        <p className="text-gray-500 text-sm mb-1">
-                          {dateFilter.startDate || dateFilter.endDate || vibeFilter !== 'all' || deliveryMethodFilter !== 'all' || statusFilter !== 'all' 
-                            ? 'Filtered Results' 
-                            : 'All Time Stats'}
-                        </p>
-                        <p className="text-4xl font-bold text-rose-600 mb-2">{filteredStats.total}</p>
-                        <p className="text-gray-600">notes created</p>
-                        <p className="text-gray-400 text-xs mt-4">
-                          Note contents are private • Only counts shown
-                        </p>
-                      </div>
+                    {/* Notes List */}
+                    <div className="space-y-4">
+                      {filteredNotes.length === 0 ? (
+                        <div className="text-center py-12 bg-white rounded-xl border border-rose-100">
+                          <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">No notes match the current filters</p>
+                        </div>
+                      ) : (
+                        filteredNotes.map((note) => {
+                          const noteVibe = VIBES.find(v => v.id === note.vibe) || { emoji: '❤️', label: 'Love' };
+                          return (
+                            <div key={note.id} className="bg-white rounded-xl border border-rose-100 shadow-sm overflow-hidden">
+                              <div className="p-4 md:p-6">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="text-3xl">{noteVibe.emoji}</div>
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">Note #{note.id.slice(-6).toUpperCase()}</h3>
+                                      <p className="text-sm text-gray-500">{noteVibe.label} • {formatDate(note.createdAt)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                      note.deliveryMethod === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {note.deliveryMethod === 'admin' ? 'Admin' : 'Self'}
+                                    </span>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                      note.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                                    }`}>
+                                      {note.status === 'pending' ? 'Pending' : 'Delivered'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <span>To: <strong className="text-gray-700">{note.recipientName}</strong></span>
+                                  {note.song && (
+                                    <span className="flex items-center gap-1"><Music className="w-3 h-3" /> {note.song.title}</span>
+                                  )}
+                                  {note.recipientInstagram && (
+                                    <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> @{note.recipientInstagram.replace('@', '')}</span>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <button onClick={() => copyLink(note.id)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm">
+                                    {copiedId === note.id ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                                    {copiedId === note.id ? 'Copied!' : 'Copy Link'}
+                                  </button>
+                                  <a href={`${window.location.origin}/view/${note.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors text-sm">
+                                    <ExternalLink className="w-3 h-3" /> View
+                                  </a>
+                                  <button onClick={() => deleteNote(note.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm ml-auto">
+                                    <Trash2 className="w-3 h-3" /> Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </>
                 );
