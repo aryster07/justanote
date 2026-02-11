@@ -271,6 +271,44 @@ export const saveNote = async (data: NoteData): Promise<{ id: string }> => {
   return { id };
 };
 
+// Legacy decryption for old encrypted notes (backward compatibility)
+const decryptLegacyData = async (encryptedData: string, keyString: string): Promise<string> => {
+  try {
+    // Convert base64url key to CryptoKey
+    const base64Key = keyString.replace(/-/g, '+').replace(/_/g, '/');
+    const paddingKey = '='.repeat((4 - (base64Key.length % 4)) % 4);
+    const keyBytes = Uint8Array.from(atob(base64Key + paddingKey), c => c.charCodeAt(0));
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyBytes,
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+    
+    // Convert base64url encrypted data to bytes
+    const base64Data = encryptedData.replace(/-/g, '+').replace(/_/g, '/');
+    const paddingData = '='.repeat((4 - (base64Data.length % 4)) % 4);
+    const combined = Uint8Array.from(atob(base64Data + paddingData), c => c.charCodeAt(0));
+    
+    // Extract IV (first 12 bytes) and ciphertext
+    const iv = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+    
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      ciphertext
+    );
+    
+    return new TextDecoder().decode(decrypted);
+  } catch (error) {
+    console.error('Legacy decryption error:', error);
+    throw new Error('Failed to decrypt legacy data');
+  }
+};
+
 // Get note from Firestore
 export const getNote = async (id: string): Promise<NoteData | null> => {
   // Validate ID format to prevent injection
@@ -284,6 +322,57 @@ export const getNote = async (id: string): Promise<NoteData | null> => {
   if (!docSnap.exists()) return null;
 
   const data = docSnap.data();
+
+  // Handle legacy encrypted notes (backward compatibility)
+  if (data.isEncrypted && data.encryptedData && data.encryptionKey) {
+    try {
+      const decryptedJson = await decryptLegacyData(data.encryptedData, data.encryptionKey);
+      const decryptedData = JSON.parse(decryptedJson);
+      
+      return {
+        id: docSnap.id,
+        recipientName: sanitizeName(decryptedData.recipientName || ''),
+        vibe: data.vibe ? sanitizeString(data.vibe) : '',
+        song: decryptedData.song || null,
+        songData: decryptedData.songData || null,
+        message: sanitizeMessage(decryptedData.message || ''),
+        photoUrl: decryptedData.photoUrl || null,
+        isAnonymous: Boolean(decryptedData.isAnonymous ?? true),
+        senderName: sanitizeName(decryptedData.senderName || ''),
+        deliveryMethod: data.deliveryMethod === 'admin' ? 'admin' : 'self',
+        recipientInstagram: sanitizeInstagram(data.recipientInstagram || ''),
+        senderEmail: sanitizeEmail(data.senderEmail || ''),
+        status: data.status || 'delivered',
+        createdAt: data.createdAt,
+        viewCount: typeof data.viewCount === 'number' ? data.viewCount : 0,
+        photo: null,
+        firstViewedAt: data.firstViewedAt || null,
+        wasViewedBefore: data.viewCount > 0,
+      };
+    } catch (error) {
+      console.error('Failed to decrypt legacy note:', error);
+      return {
+        id: docSnap.id,
+        recipientName: '[Legacy Encrypted Note]',
+        vibe: data.vibe ? sanitizeString(data.vibe) : '',
+        song: null,
+        songData: null,
+        message: '[This note was encrypted with an old system and could not be decrypted.]',
+        photoUrl: null,
+        isAnonymous: true,
+        senderName: '',
+        deliveryMethod: data.deliveryMethod === 'admin' ? 'admin' : 'self',
+        recipientInstagram: '',
+        senderEmail: '',
+        status: data.status || 'delivered',
+        createdAt: data.createdAt,
+        viewCount: 0,
+        photo: null,
+        firstViewedAt: null,
+        wasViewedBefore: false,
+      };
+    }
+  }
 
   return {
     id: docSnap.id,
