@@ -94,6 +94,13 @@ export default function Admin() {
   const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_gkanixq';
   const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'D0IP-NcoiDAvCP57u';
 
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   // Password login state
   const [passwordInput, setPasswordInput] = useState('');
   const [loginMode, setLoginMode] = useState<'choose' | 'password' | 'google'>('choose');
@@ -345,51 +352,76 @@ export default function Admin() {
     fetchAllNotes();
   }, [isAuthorized]);
 
-  // Manual refresh function (forces re-fetch)
+  // Manual refresh function (forces re-fetch of both views)
   const refreshNotes = async () => {
     if (!isAuthorized) return;
     setLoading(true);
     setError('');
+    showToast('Refreshing...', 'info');
     
     try {
-      const q = query(
+      // Fetch admin delivery notes
+      const adminQuery = query(
         collection(db, 'notes'),
         where('deliveryMethod', '==', 'admin'),
         orderBy('createdAt', 'desc')
       );
       
-      const snapshot = await getDocs(q);
-      const allNotes: Note[] = snapshot.docs.map(doc => ({
+      // Fetch all notes
+      const allQuery = query(
+        collection(db, 'notes'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const [adminSnapshot, allSnapshot] = await Promise.all([
+        getDocs(adminQuery),
+        getDocs(allQuery)
+      ]);
+
+      const adminNotes: Note[] = adminSnapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
       })) as Note[];
 
-      // Calculate stats
+      const fetchedAllNotes: Note[] = allSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as Note[];
+
+      // Calculate delivery stats
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const pending = allNotes.filter(n => n.status === 'pending').length;
-      const delivered = allNotes.filter(n => n.status === 'delivered').length;
-      const todayCreated = allNotes.filter(n => {
+      const pending = adminNotes.filter(n => n.status === 'pending').length;
+      const delivered = adminNotes.filter(n => n.status === 'delivered').length;
+      const todayCreated = adminNotes.filter(n => {
         if (!n.createdAt?.toDate) return false;
         const created = n.createdAt.toDate();
         return created >= today;
       }).length;
 
-      setStats({
-        total: allNotes.length,
-        pending,
-        delivered,
-        todayCreated
+      setStats({ total: adminNotes.length, pending, delivered, todayCreated });
+      setNotes(adminNotes);
+
+      // Update all notes + stats
+      setAllNotes(fetchedAllNotes);
+      setAllNotesStats({
+        total: fetchedAllNotes.length,
+        self: fetchedAllNotes.filter(n => n.deliveryMethod === 'self').length,
+        admin: fetchedAllNotes.filter(n => n.deliveryMethod === 'admin').length,
+        delivered: fetchedAllNotes.filter(n => n.status === 'delivered').length,
+        pending: fetchedAllNotes.filter(n => n.status === 'pending').length,
       });
 
-      setNotes(allNotes);
+      showToast(`Refreshed! ${fetchedAllNotes.length} notes loaded`, 'success');
     } catch (err: any) {
       console.error('Error fetching notes:', err);
       if (err.code === 'failed-precondition') {
         setError('Database index required. Check Firebase Console.');
+        showToast('Failed: Database index required', 'error');
       } else {
         setError('Failed to fetch notes');
+        showToast('Refresh failed. Check connection.', 'error');
       }
     }
     setLoading(false);
@@ -1176,6 +1208,21 @@ export default function Admin() {
           </>
         )}
       </main>
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-[slideUp_0.3s_ease-out]">
+          <div className={`flex items-center gap-2 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${
+            toast.type === 'success' ? 'bg-green-500 text-white' :
+            toast.type === 'error' ? 'bg-red-500 text-white' :
+            'bg-gray-800 text-white'
+          }`}>
+            {toast.type === 'success' && <CheckCircle className="w-4 h-4" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4" />}
+            {toast.type === 'info' && <RefreshCw className="w-4 h-4 animate-spin" />}
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
