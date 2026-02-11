@@ -655,7 +655,7 @@ const ViewNote: React.FC = () => {
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-md cursor-pointer"
           onClick={() => {
             const url = note?.songData?.preview || note?.song?.preview;
-            if (!url) return;
+            if (!url || !autoPlayBlocked) return;
             // Create a fresh audio element to avoid any corrupted state
             if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
             const a = new Audio(url);
@@ -668,9 +668,6 @@ const ViewNote: React.FC = () => {
               setIsPlaying(true);
               setAutoPlayBlocked(false);
             }).catch(console.error);
-          }}
-          onTouchEnd={(e) => {
-            e.preventDefault(); // prevent double-fire with onClick
           }}
         >
           <div className="flex flex-col items-center gap-4">
