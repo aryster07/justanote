@@ -165,32 +165,12 @@ const ViewNote: React.FC = () => {
           setAutoPlayBlocked(false);
           return;
         }
-        // Browser paused on unmute — keep playing muted and show overlay
-        if (audio.paused) {
-          audio.muted = true;
-          audio.volume = 0;
-          await audio.play().catch(() => {});
-        }
+        // Browser blocked unmute — stop audio entirely and reset for manual play
+        audio.pause();
+        audio.muted = false;
+        audio.volume = 1;
+        audio.currentTime = 0;
       } catch (_) { /* both failed */ }
-
-      // Attempt 3: AudioContext unlock trick
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
-          const ctx = new AudioCtx();
-          const source = ctx.createMediaElementSource(audio);
-          source.connect(ctx.destination);
-          await ctx.resume();
-          audio.muted = false;
-          audio.volume = 1;
-          await audio.play();
-          if (!audio.paused && !cancelled) {
-            setIsPlaying(true);
-            setAutoPlayBlocked(false);
-            return;
-          }
-        }
-      } catch (_) { /* AudioContext also blocked */ }
 
       // All attempts failed — show tap overlay
       if (!cancelled) {
@@ -674,24 +654,23 @@ const ViewNote: React.FC = () => {
       {autoPlayBlocked && hasAudioPreview && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-md cursor-pointer"
           onClick={() => {
-            if (audioRef.current) {
-              audioRef.current.muted = false;
-              audioRef.current.volume = 1;
-              audioRef.current.play().then(() => {
-                setIsPlaying(true);
-                setAutoPlayBlocked(false);
-              }).catch(console.error);
-            }
+            const url = note?.songData?.preview || note?.song?.preview;
+            if (!url) return;
+            // Create a fresh audio element to avoid any corrupted state
+            if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
+            const a = new Audio(url);
+            a.volume = 1;
+            a.muted = false;
+            a.ontimeupdate = () => { if (a.duration) setProgress((a.currentTime / a.duration) * 100); };
+            a.onended = () => { setIsPlaying(false); setProgress(0); };
+            audioRef.current = a;
+            a.play().then(() => {
+              setIsPlaying(true);
+              setAutoPlayBlocked(false);
+            }).catch(console.error);
           }}
-          onTouchEnd={() => {
-            if (audioRef.current) {
-              audioRef.current.muted = false;
-              audioRef.current.volume = 1;
-              audioRef.current.play().then(() => {
-                setIsPlaying(true);
-                setAutoPlayBlocked(false);
-              }).catch(console.error);
-            }
+          onTouchEnd={(e) => {
+            e.preventDefault(); // prevent double-fire with onClick
           }}
         >
           <div className="flex flex-col items-center gap-4">
