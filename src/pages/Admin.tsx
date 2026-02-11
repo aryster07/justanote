@@ -24,8 +24,17 @@ import {
   Calendar,
   LogOut,
   Filter,
-  BarChart3
+  BarChart3,
+  Key
 } from 'lucide-react';
+
+// SHA-256 hash function using SubtleCrypto (browser-native, no library needed)
+const sha256 = async (message: string): Promise<string> => {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
 
 interface Note extends NoteData {
   id: string;
@@ -53,13 +62,11 @@ interface DateFilter {
   endDate: string;
 }
 
-// Allowed admin emails
-const ALLOWED_ADMINS = [
-  'aryanrana762@gmail.com',
-  'justanote07@gmail.com',
-  'arshrana762@gmail.com',
-  'anushkapuri17@gmail.com'
-];
+// Pull allowed admin emails from env (with fallback so site never breaks)
+const ALLOWED_ADMINS = (import.meta.env.VITE_ADMIN_EMAILS || 'aryanrana762@gmail.com,justanote07@gmail.com,arshrana762@gmail.com,anushkapuri17@gmail.com').split(',').map((e: string) => e.trim()).filter(Boolean);
+
+// Admin password hash (SHA-256 of password, with fallback)
+const ADMIN_PASSWORD_HASH = import.meta.env.VITE_ADMIN_PASSWORD_HASH || '7d72fe16ad1fc9e2e5b81a89b5c2f71ad61e039c578f262ec311ba4bad6e19f3';
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
@@ -82,10 +89,21 @@ export default function Admin() {
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'self' | 'admin'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'delivered'>('all');
 
-  // EmailJS configuration
-  const EMAILJS_SERVICE_ID = 'service_h5xg96d';
-  const EMAILJS_TEMPLATE_ID = 'template_gkanixq';
-  const EMAILJS_PUBLIC_KEY = 'D0IP-NcoiDAvCP57u';
+  // EmailJS configuration from env (with fallbacks so site never breaks)
+  const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_h5xg96d';
+  const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_gkanixq';
+  const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'D0IP-NcoiDAvCP57u';
+
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Password login state
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginMode, setLoginMode] = useState<'choose' | 'password' | 'google'>('choose');
 
 
   // Listen for auth state changes
@@ -201,9 +219,33 @@ export default function Admin() {
     }
   };
 
+  // Handle password login (hash-compare, no plaintext stored)
+  const handlePasswordLogin = async () => {
+    if (!passwordInput.trim()) return;
+    setSigningIn(true);
+    setError('');
+    try {
+      const inputHash = await sha256(passwordInput.trim());
+      const storedHash = ADMIN_PASSWORD_HASH;
+      if (inputHash === storedHash) {
+        // Password matches — grant access without Google auth
+        setIsAuthorized(true);
+        setAuthLoading(false);
+        setPasswordInput('');
+      } else {
+        setError('Incorrect password.');
+      }
+    } catch (err) {
+      setError('Login failed. Please try again.');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
   // Handle Sign Out
   const handleSignOut = async () => {
     try {
+      setIsAuthorized(false);
       await signOut(auth);
     } catch (err) {
       console.error('Sign out error:', err);
@@ -310,51 +352,76 @@ export default function Admin() {
     fetchAllNotes();
   }, [isAuthorized]);
 
-  // Manual refresh function (forces re-fetch)
+  // Manual refresh function (forces re-fetch of both views)
   const refreshNotes = async () => {
     if (!isAuthorized) return;
     setLoading(true);
     setError('');
+    showToast('Refreshing...', 'info');
     
     try {
-      const q = query(
+      // Fetch admin delivery notes
+      const adminQuery = query(
         collection(db, 'notes'),
         where('deliveryMethod', '==', 'admin'),
         orderBy('createdAt', 'desc')
       );
       
-      const snapshot = await getDocs(q);
-      const allNotes: Note[] = snapshot.docs.map(doc => ({
+      // Fetch all notes
+      const allQuery = query(
+        collection(db, 'notes'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const [adminSnapshot, allSnapshot] = await Promise.all([
+        getDocs(adminQuery),
+        getDocs(allQuery)
+      ]);
+
+      const adminNotes: Note[] = adminSnapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id,
       })) as Note[];
 
-      // Calculate stats
+      const fetchedAllNotes: Note[] = allSnapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as Note[];
+
+      // Calculate delivery stats
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const pending = allNotes.filter(n => n.status === 'pending').length;
-      const delivered = allNotes.filter(n => n.status === 'delivered').length;
-      const todayCreated = allNotes.filter(n => {
+      const pending = adminNotes.filter(n => n.status === 'pending').length;
+      const delivered = adminNotes.filter(n => n.status === 'delivered').length;
+      const todayCreated = adminNotes.filter(n => {
         if (!n.createdAt?.toDate) return false;
         const created = n.createdAt.toDate();
         return created >= today;
       }).length;
 
-      setStats({
-        total: allNotes.length,
-        pending,
-        delivered,
-        todayCreated
+      setStats({ total: adminNotes.length, pending, delivered, todayCreated });
+      setNotes(adminNotes);
+
+      // Update all notes + stats
+      setAllNotes(fetchedAllNotes);
+      setAllNotesStats({
+        total: fetchedAllNotes.length,
+        self: fetchedAllNotes.filter(n => n.deliveryMethod === 'self').length,
+        admin: fetchedAllNotes.filter(n => n.deliveryMethod === 'admin').length,
+        delivered: fetchedAllNotes.filter(n => n.status === 'delivered').length,
+        pending: fetchedAllNotes.filter(n => n.status === 'pending').length,
       });
 
-      setNotes(allNotes);
+      showToast(`Refreshed! ${fetchedAllNotes.length} notes loaded`, 'success');
     } catch (err: any) {
       console.error('Error fetching notes:', err);
       if (err.code === 'failed-precondition') {
         setError('Database index required. Check Firebase Console.');
+        showToast('Failed: Database index required', 'error');
       } else {
         setError('Failed to fetch notes');
+        showToast('Refresh failed. Check connection.', 'error');
       }
     }
     setLoading(false);
@@ -424,6 +491,10 @@ export default function Admin() {
 
   // Delete a single note
   const deleteNote = async (noteId: string) => {
+    if (!user) {
+      alert('Delete requires Google sign-in. Please sign out and use Google login.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this note?')) return;
     
     try {
@@ -448,6 +519,10 @@ export default function Admin() {
 
   // Delete all notes (admin only)
   const deleteAllNotes = async () => {
+    if (!user) {
+      alert('Delete requires Google sign-in. Please sign out and use Google login.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete ALL notes? This cannot be undone!')) return;
     if (!confirm('This will permanently delete all notes. Type "DELETE" to confirm.')) return;
     
@@ -510,7 +585,7 @@ export default function Admin() {
   }
 
   // Login screen
-  if (!user || !isAuthorized) {
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-pink-50 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
@@ -520,7 +595,9 @@ export default function Admin() {
                 <Lock className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-bold text-gray-900">Admin Access</h1>
-              <p className="text-gray-500 mt-2">Sign in with authorized Google account</p>
+              <p className="text-gray-500 mt-2">
+                {loginMode === 'choose' ? 'Choose login method' : loginMode === 'password' ? 'Enter admin password' : 'Sign in with Google'}
+              </p>
             </div>
 
             {error && (
@@ -530,18 +607,19 @@ export default function Admin() {
               </div>
             )}
 
-            <button
-              onClick={handleGoogleSignIn}
-              disabled={signingIn}
-              className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {signingIn ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
+            {loginMode === 'choose' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => { setLoginMode('password'); setError(''); }}
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-medium rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all flex items-center justify-center gap-3"
+                >
+                  <Key className="w-5 h-5" />
+                  Login with Password
+                </button>
+                <button
+                  onClick={() => { setLoginMode('google'); setError(''); }}
+                  className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3"
+                >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -549,12 +627,73 @@ export default function Admin() {
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                   Sign in with Google
-                </>
-              )}
-            </button>
+                </button>
+              </div>
+            )}
+
+            {loginMode === 'password' && (
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePasswordLogin()}
+                  placeholder="Enter admin password"
+                  autoFocus
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-0 outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                />
+                <button
+                  onClick={handlePasswordLogin}
+                  disabled={signingIn || !passwordInput.trim()}
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-medium rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {signingIn ? (
+                    <><RefreshCw className="w-5 h-5 animate-spin" /> Verifying...</>
+                  ) : (
+                    <><Lock className="w-5 h-5" /> Login</>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setLoginMode('choose'); setError(''); setPasswordInput(''); }}
+                  className="w-full py-2 text-gray-500 text-sm hover:text-gray-700 transition-colors"
+                >
+                  ← Back to login options
+                </button>
+              </div>
+            )}
+
+            {loginMode === 'google' && (
+              <div className="space-y-3">
+                <button
+                  onClick={handleGoogleSignIn}
+                  disabled={signingIn}
+                  className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {signingIn ? (
+                    <><RefreshCw className="w-5 h-5 animate-spin" /> Signing in...</>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                      Sign in with Google
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setLoginMode('choose'); setError(''); }}
+                  className="w-full py-2 text-gray-500 text-sm hover:text-gray-700 transition-colors"
+                >
+                  ← Back to login options
+                </button>
+              </div>
+            )}
 
             <p className="text-xs text-gray-400 text-center mt-6">
-              Only authorized emails can access admin panel
+              Authorized access only
             </p>
           </div>
         </div>
@@ -575,7 +714,7 @@ export default function Admin() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Just A Note</h1>
-                <p className="text-sm text-gray-500">Welcome, {user.displayName || user.email}</p>
+                <p className="text-sm text-gray-500">Welcome, {user?.displayName || user?.email || 'Admin'}</p>
               </div>
             </div>
             
@@ -1001,21 +1140,77 @@ export default function Admin() {
                       </div>
                     </div>
 
-                    {/* Summary Box */}
-                    <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl border border-rose-100 shadow-sm p-6">
-                      <div className="text-center">
-                        <p className="text-gray-500 text-sm mb-1">
-                          {dateFilter.startDate || dateFilter.endDate || vibeFilter !== 'all' || deliveryMethodFilter !== 'all' || statusFilter !== 'all' 
-                            ? 'Filtered Results' 
-                            : 'All Time Stats'}
-                        </p>
-                        <p className="text-4xl font-bold text-rose-600 mb-2">{filteredStats.total}</p>
-                        <p className="text-gray-600">notes created</p>
-                        <p className="text-gray-400 text-xs mt-4">
-                          Note contents are private • Only counts shown
-                        </p>
-                      </div>
+                    {/* Notes List — only show admin-delivery notes (self-delivered are stats only) */}
+                    {(() => {
+                      const adminOnlyNotes = filteredNotes.filter(n => n.deliveryMethod === 'admin');
+                      return (
+                        <div className="space-y-4">
+                          {adminOnlyNotes.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-xl border border-rose-100">
+                              <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                              <p className="text-gray-500">No admin-delivery notes match the current filters</p>
+                              {filteredNotes.length > 0 && (
+                                <p className="text-gray-400 text-sm mt-1">{filteredNotes.filter(n => n.deliveryMethod === 'self').length} self-delivered notes (stats only)</p>
+                              )}
+                            </div>
+                          ) : (
+                            adminOnlyNotes.map((note) => {
+                          const noteVibe = VIBES.find(v => v.id === note.vibe) || { emoji: '❤️', label: 'Love' };
+                          return (
+                            <div key={note.id} className="bg-white rounded-xl border border-rose-100 shadow-sm overflow-hidden">
+                              <div className="p-4 md:p-6">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="text-3xl">{noteVibe.emoji}</div>
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">Note #{note.id.slice(-6).toUpperCase()}</h3>
+                                      <p className="text-sm text-gray-500">{noteVibe.label} • {formatDate(note.createdAt)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                      note.deliveryMethod === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {note.deliveryMethod === 'admin' ? 'Admin' : 'Self'}
+                                    </span>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                      note.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                                    }`}>
+                                      {note.status === 'pending' ? 'Pending' : 'Delivered'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <span>To: <strong className="text-gray-700">{note.recipientName}</strong></span>
+                                  {note.song && (
+                                    <span className="flex items-center gap-1"><Music className="w-3 h-3" /> {note.song.title}</span>
+                                  )}
+                                  {note.recipientInstagram && (
+                                    <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> @{note.recipientInstagram.replace('@', '')}</span>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  <button onClick={() => copyLink(note.id)} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm">
+                                    {copiedId === note.id ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                                    {copiedId === note.id ? 'Copied!' : 'Copy Link'}
+                                  </button>
+                                  <a href={`${window.location.origin}/view/${note.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors text-sm">
+                                    <ExternalLink className="w-3 h-3" /> View
+                                  </a>
+                                  <button onClick={() => deleteNote(note.id)} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm ml-auto">
+                                    <Trash2 className="w-3 h-3" /> Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
+                      );
+                    })()}
                   </>
                 );
               })()}
@@ -1023,6 +1218,21 @@ export default function Admin() {
           </>
         )}
       </main>
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-[slideUp_0.3s_ease-out]">
+          <div className={`flex items-center gap-2 px-5 py-3 rounded-xl shadow-lg text-sm font-medium ${
+            toast.type === 'success' ? 'bg-green-500 text-white' :
+            toast.type === 'error' ? 'bg-red-500 text-white' :
+            'bg-gray-800 text-white'
+          }`}>
+            {toast.type === 'success' && <CheckCircle className="w-4 h-4" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4" />}
+            {toast.type === 'info' && <RefreshCw className="w-4 h-4 animate-spin" />}
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
