@@ -22,6 +22,8 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: 'dist',
+      // Disable source maps in production so nobody can read source via devtools
+      sourcemap: false,
     },
   };
 });

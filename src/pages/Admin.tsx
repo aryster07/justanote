@@ -24,8 +24,17 @@ import {
   Calendar,
   LogOut,
   Filter,
-  BarChart3
+  BarChart3,
+  Key
 } from 'lucide-react';
+
+// SHA-256 hash function using SubtleCrypto (browser-native, no library needed)
+const sha256 = async (message: string): Promise<string> => {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
 
 interface Note extends NoteData {
   id: string;
@@ -53,13 +62,11 @@ interface DateFilter {
   endDate: string;
 }
 
-// Allowed admin emails
-const ALLOWED_ADMINS = [
-  'aryanrana762@gmail.com',
-  'justanote07@gmail.com',
-  'arshrana762@gmail.com',
-  'anushkapuri17@gmail.com'
-];
+// Pull allowed admin emails from env (with fallback so site never breaks)
+const ALLOWED_ADMINS = (import.meta.env.VITE_ADMIN_EMAILS || 'aryanrana762@gmail.com,justanote07@gmail.com,arshrana762@gmail.com,anushkapuri17@gmail.com').split(',').map((e: string) => e.trim()).filter(Boolean);
+
+// Admin password hash (SHA-256 of password, with fallback)
+const ADMIN_PASSWORD_HASH = import.meta.env.VITE_ADMIN_PASSWORD_HASH || '7d72fe16ad1fc9e2e5b81a89b5c2f71ad61e039c578f262ec311ba4bad6e19f3';
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
@@ -82,10 +89,14 @@ export default function Admin() {
   const [deliveryMethodFilter, setDeliveryMethodFilter] = useState<'all' | 'self' | 'admin'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'delivered'>('all');
 
-  // EmailJS configuration
-  const EMAILJS_SERVICE_ID = 'service_h5xg96d';
-  const EMAILJS_TEMPLATE_ID = 'template_gkanixq';
-  const EMAILJS_PUBLIC_KEY = 'D0IP-NcoiDAvCP57u';
+  // EmailJS configuration from env (with fallbacks so site never breaks)
+  const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_h5xg96d';
+  const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_gkanixq';
+  const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'D0IP-NcoiDAvCP57u';
+
+  // Password login state
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginMode, setLoginMode] = useState<'choose' | 'password' | 'google'>('choose');
 
 
   // Listen for auth state changes
@@ -201,9 +212,33 @@ export default function Admin() {
     }
   };
 
+  // Handle password login (hash-compare, no plaintext stored)
+  const handlePasswordLogin = async () => {
+    if (!passwordInput.trim()) return;
+    setSigningIn(true);
+    setError('');
+    try {
+      const inputHash = await sha256(passwordInput.trim());
+      const storedHash = ADMIN_PASSWORD_HASH;
+      if (inputHash === storedHash) {
+        // Password matches — grant access without Google auth
+        setIsAuthorized(true);
+        setAuthLoading(false);
+        setPasswordInput('');
+      } else {
+        setError('Incorrect password.');
+      }
+    } catch (err) {
+      setError('Login failed. Please try again.');
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
   // Handle Sign Out
   const handleSignOut = async () => {
     try {
+      setIsAuthorized(false);
       await signOut(auth);
     } catch (err) {
       console.error('Sign out error:', err);
@@ -424,6 +459,10 @@ export default function Admin() {
 
   // Delete a single note
   const deleteNote = async (noteId: string) => {
+    if (!user) {
+      alert('Delete requires Google sign-in. Please sign out and use Google login.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this note?')) return;
     
     try {
@@ -448,6 +487,10 @@ export default function Admin() {
 
   // Delete all notes (admin only)
   const deleteAllNotes = async () => {
+    if (!user) {
+      alert('Delete requires Google sign-in. Please sign out and use Google login.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete ALL notes? This cannot be undone!')) return;
     if (!confirm('This will permanently delete all notes. Type "DELETE" to confirm.')) return;
     
@@ -508,7 +551,7 @@ export default function Admin() {
   }
 
   // Login screen
-  if (!user || !isAuthorized) {
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-pink-50 flex items-center justify-center p-4">
         <div className="w-full max-w-sm">
@@ -518,7 +561,9 @@ export default function Admin() {
                 <Lock className="w-8 h-8 text-white" />
               </div>
               <h1 className="text-2xl font-bold text-gray-900">Admin Access</h1>
-              <p className="text-gray-500 mt-2">Sign in with authorized Google account</p>
+              <p className="text-gray-500 mt-2">
+                {loginMode === 'choose' ? 'Choose login method' : loginMode === 'password' ? 'Enter admin password' : 'Sign in with Google'}
+              </p>
             </div>
 
             {error && (
@@ -528,18 +573,19 @@ export default function Admin() {
               </div>
             )}
 
-            <button
-              onClick={handleGoogleSignIn}
-              disabled={signingIn}
-              className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {signingIn ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
+            {loginMode === 'choose' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => { setLoginMode('password'); setError(''); }}
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-medium rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all flex items-center justify-center gap-3"
+                >
+                  <Key className="w-5 h-5" />
+                  Login with Password
+                </button>
+                <button
+                  onClick={() => { setLoginMode('google'); setError(''); }}
+                  className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3"
+                >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -547,12 +593,73 @@ export default function Admin() {
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                   Sign in with Google
-                </>
-              )}
-            </button>
+                </button>
+              </div>
+            )}
+
+            {loginMode === 'password' && (
+              <div className="space-y-3">
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePasswordLogin()}
+                  placeholder="Enter admin password"
+                  autoFocus
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-0 outline-none transition-colors text-gray-900 placeholder:text-gray-400"
+                />
+                <button
+                  onClick={handlePasswordLogin}
+                  disabled={signingIn || !passwordInput.trim()}
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white font-medium rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {signingIn ? (
+                    <><RefreshCw className="w-5 h-5 animate-spin" /> Verifying...</>
+                  ) : (
+                    <><Lock className="w-5 h-5" /> Login</>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setLoginMode('choose'); setError(''); setPasswordInput(''); }}
+                  className="w-full py-2 text-gray-500 text-sm hover:text-gray-700 transition-colors"
+                >
+                  ← Back to login options
+                </button>
+              </div>
+            )}
+
+            {loginMode === 'google' && (
+              <div className="space-y-3">
+                <button
+                  onClick={handleGoogleSignIn}
+                  disabled={signingIn}
+                  className="w-full py-3 bg-white border-2 border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {signingIn ? (
+                    <><RefreshCw className="w-5 h-5 animate-spin" /> Signing in...</>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                      </svg>
+                      Sign in with Google
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setLoginMode('choose'); setError(''); }}
+                  className="w-full py-2 text-gray-500 text-sm hover:text-gray-700 transition-colors"
+                >
+                  ← Back to login options
+                </button>
+              </div>
+            )}
 
             <p className="text-xs text-gray-400 text-center mt-6">
-              Only authorized emails can access admin panel
+              Authorized access only
             </p>
           </div>
         </div>
@@ -573,7 +680,7 @@ export default function Admin() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Just A Note</h1>
-                <p className="text-sm text-gray-500">Welcome, {user.displayName || user.email}</p>
+                <p className="text-sm text-gray-500">Welcome, {user?.displayName || user?.email || 'Admin'}</p>
               </div>
             </div>
             
