@@ -5,7 +5,7 @@ import emailjs from '@emailjs/browser';
 
 // EmailJS configuration for admin notifications
 const EMAILJS_SERVICE_ID = 'service_h5xg96d';
-const EMAILJS_ADMIN_TEMPLATE_ID = 'template_admin_notify'; // Create this template in EmailJS
+const EMAILJS_TEMPLATE_ID = 'template_gkanixq'; // Using existing template
 const EMAILJS_PUBLIC_KEY = 'D0IP-NcoiDAvCP57u';
 const ADMIN_EMAIL = 'aryanrana762@gmail.com';
 
@@ -21,23 +21,18 @@ const notifyAdminNewNote = async (noteId: string, noteData: {
   try {
     const vibeInfo = VIBES.find(v => v.id === noteData.vibe) || { emoji: '💌', label: 'Love' };
     const noteLink = `${window.location.origin}/view/${noteId}`;
-    const adminLink = `${window.location.origin}/admin`;
     
     await emailjs.send(
       EMAILJS_SERVICE_ID,
-      EMAILJS_ADMIN_TEMPLATE_ID,
+      EMAILJS_TEMPLATE_ID,
       {
         to_email: ADMIN_EMAIL,
-        note_id: noteId,
-        recipient_name: noteData.recipientName,
-        recipient_instagram: noteData.recipientInstagram || 'Not provided',
+        sender_name: 'Just A Note System',
+        recipient_name: `NEW ADMIN NOTE: ${noteData.recipientName} (@${noteData.recipientInstagram || 'no-ig'})`,
+        note_link: noteLink,
         vibe_emoji: vibeInfo.emoji,
         vibe_label: vibeInfo.label,
-        sender_type: noteData.isAnonymous ? 'Anonymous' : noteData.senderName,
-        sender_email: noteData.senderEmail || 'Not provided',
-        note_link: noteLink,
-        admin_link: adminLink,
-        created_at: new Date().toLocaleString(),
+        message_preview: `New admin delivery note created. Recipient: ${noteData.recipientName}, IG: @${noteData.recipientInstagram}`,
       },
       EMAILJS_PUBLIC_KEY
     );
