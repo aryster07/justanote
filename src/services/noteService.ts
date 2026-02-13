@@ -1,6 +1,52 @@
 import { collection, doc, setDoc, getDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { NoteData } from '../types';
+import { NoteData, VIBES } from '../types';
+import emailjs from '@emailjs/browser';
+
+// EmailJS configuration for admin notifications
+const EMAILJS_SERVICE_ID = 'service_h5xg96d';
+const EMAILJS_ADMIN_TEMPLATE_ID = 'template_admin_notify'; // Create this template in EmailJS
+const EMAILJS_PUBLIC_KEY = 'D0IP-NcoiDAvCP57u';
+const ADMIN_EMAIL = 'aryanrana762@gmail.com';
+
+// Send notification email to admin when new admin delivery note is created
+const notifyAdminNewNote = async (noteId: string, noteData: {
+  recipientName: string;
+  recipientInstagram: string;
+  vibe: string | null;
+  isAnonymous: boolean;
+  senderName: string;
+  senderEmail: string;
+}) => {
+  try {
+    const vibeInfo = VIBES.find(v => v.id === noteData.vibe) || { emoji: '💌', label: 'Love' };
+    const noteLink = `${window.location.origin}/view/${noteId}`;
+    const adminLink = `${window.location.origin}/admin`;
+    
+    await emailjs.send(
+      EMAILJS_SERVICE_ID,
+      EMAILJS_ADMIN_TEMPLATE_ID,
+      {
+        to_email: ADMIN_EMAIL,
+        note_id: noteId,
+        recipient_name: noteData.recipientName,
+        recipient_instagram: noteData.recipientInstagram || 'Not provided',
+        vibe_emoji: vibeInfo.emoji,
+        vibe_label: vibeInfo.label,
+        sender_type: noteData.isAnonymous ? 'Anonymous' : noteData.senderName,
+        sender_email: noteData.senderEmail || 'Not provided',
+        note_link: noteLink,
+        admin_link: adminLink,
+        created_at: new Date().toLocaleString(),
+      },
+      EMAILJS_PUBLIC_KEY
+    );
+    console.log('Admin notification email sent successfully');
+  } catch (error) {
+    console.error('Failed to send admin notification email:', error);
+    // Don't throw - email failure shouldn't block note creation
+  }
+};
 
 // ============ VALIDATION CONSTANTS ============
 const MAX_NAME_LENGTH = 100;
@@ -268,6 +314,19 @@ export const saveNote = async (data: NoteData): Promise<{ id: string }> => {
   });
 
   await setDoc(docRef, docData);
+
+  // Send email notification to admin for admin delivery notes
+  if (sanitizedData.deliveryMethod === 'admin') {
+    notifyAdminNewNote(id, {
+      recipientName: sanitizedData.recipientName,
+      recipientInstagram: sanitizedData.recipientInstagram,
+      vibe: sanitizedData.vibe,
+      isAnonymous: sanitizedData.isAnonymous,
+      senderName: sanitizedData.senderName,
+      senderEmail: sanitizedData.senderEmail,
+    });
+  }
+
   return { id };
 };
 
