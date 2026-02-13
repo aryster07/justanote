@@ -9,6 +9,9 @@ const EMAILJS_TEMPLATE_ID = 'template_gkanixq'; // Using existing template
 const EMAILJS_PUBLIC_KEY = 'D0IP-NcoiDAvCP57u';
 const ADMIN_EMAIL = 'aryanrana762@gmail.com';
 
+// Initialize EmailJS
+emailjs.init(EMAILJS_PUBLIC_KEY);
+
 // Send notification email to admin when new admin delivery note is created
 const notifyAdminNewNote = async (noteId: string, noteData: {
   recipientName: string;
